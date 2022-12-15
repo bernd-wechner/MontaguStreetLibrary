@@ -10,7 +10,7 @@ from time import time
 
 from django.conf import settings
 
-log = logging.getLogger("CoGs")
+log = logging.getLogger("MSL")
 
 
 class RelativeFilter(logging.Filter):

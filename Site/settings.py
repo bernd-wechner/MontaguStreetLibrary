@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'reset_migrations',
     'Doors'
 ]
 
@@ -165,7 +166,7 @@ if SITE_IS_LIVE:
                                     }
                            }
 
-    LOGGING['loggers'] = { 'CoGs': { 'handlers': ['file'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG') } }
+    LOGGING['loggers'] = { 'MSL': { 'handlers': ['file'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG') } }
 else:
     LOGGING['handlers'] = { 'console': {
                                     'level': 'DEBUG',
@@ -175,7 +176,7 @@ else:
                                     }
                            }
 
-    LOGGING['loggers'] = { 'CoGs': { 'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG') } }
+    LOGGING['loggers'] = { 'MSL': { 'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG') } }
 
 # Pass our logger to Django Rich Views
 from Site.logutils import log
@@ -185,7 +186,7 @@ import logging.config
 import django_rich_views.logs
 django_rich_views.logs.logger = log
 
-# Log some config debugs
+# Log some config debugs'reset_migrations'
 if DEBUG:
     import django  # So we have access to the version for reporting
     import psutil  # So we can access process details

@@ -23,7 +23,7 @@ class Command(BaseCommand):
         for door in Door.objects.all():
             log = cloud.getdevicelog(door.tuya_device_id, start=min_tuya_timestamp, end=max_tuya_timestamp)
 
-            self.save_events(door, log)
+            Event.save_logs(door, log)
             Opening.update_from_events(door)
 
         # A visit spans all doors (while an Opening concerns only one door)

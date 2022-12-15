@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import models
+from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.gis.db.models.lookups import OverlapsAboveLookup
+from django.utils.functional import classproperty
+
+from Site.logutils import log
 
 # Translate Tuya source IDs to a useful string describing the source
 # Based on https://developer.tuya.com/en/docs/cloud/0a30fc557f?id=Ka7kjybdo0jse
@@ -46,6 +50,10 @@ class Door(models.Model):
     # openings = OneToManyField(Opening, related_name='door') # Implicit by ForeignKey in Opening
     # events = OneToManyField(Event, related_name='door') # Implicit by ForeignKey in Event
 
+    @classproperty
+    def ids(cls):
+        return sorted([door.id for door in Door.objects.all()])
+
 
 class Event(models.Model):
     '''
@@ -89,7 +97,7 @@ class Event(models.Model):
         # TODO: test
         return (len(self.openings.all()) + len(self.closings.all())) == 0
 
-    @classmethod
+    @classproperty
     def Ignored(cls):
         # TODO: test
         return cls.objects.filter(openings=None, closings=None)
@@ -114,7 +122,7 @@ class Event(models.Model):
 
     @classmethod
     def door_state_from_contact_state(cls, contact_state=None):
-        return DOOR_STATES[contact_state] if contact_state in DOOR_STATES else contac_state
+        return DOOR_STATES[contact_state] if contact_state in DOOR_STATES else contact_state
 
     @classmethod
     def save_logs(cls, door, log):
@@ -133,7 +141,7 @@ class Event(models.Model):
                     event_timestamp = int(event['event_time'])
                     event_date_time = cls.door_state_from_contact_state(event_timestamp)
 
-                    if not Door.objects.exists(timestamp=event_timestamp, door=door):
+                    if not Event.objects.filter(timestamp=event_timestamp, door=door).exists():
                         event_from = cls.source_from_int(int(event.get("event_from", None)))
                         event_type = cls.type_from_int(event.get("event_id", None))
                         event_value = cls.door_state_from_contact_state(event.get("value", None))
@@ -147,7 +155,7 @@ class Event(models.Model):
 
                         event.save()
 
-                        assert event.date_time == event_date_time, "Oops, timestamp issue"
+                        assert event.date_time == cls.datetime_from_timestamp(event_date_time), "Oops, timestamp issue"
                 except Exception as E:
                     pass
 
@@ -162,14 +170,16 @@ class Visit(models.Model):
     duration = models.DurationField('Duration')
     prior_quiet = models.DurationField('Duration')
     # Populated after creating the object so can be null
-    doors = models.JSONField(null=True)  # List of Door IDs in order opened (can contain duplicates)
-    overlaps = models.JSONField(null=True)  # List of tuples conveying doors open simultaneously (overlapping openings)
+    doors = models.JSONField(null=True, encoder=DjangoJSONEncoder)  # List of Door IDs in order opened (can contain duplicates)
+    overlaps = models.JSONField(null=True, encoder=DjangoJSONEncoder)  # List of tuples conveying doors open simultaneously (overlapping openings)
 
     # openings = OneToManyField(Opening, related_name='visit') # Implicit by ForeignKey in Opening
 
+    @property
     def timestamp(self):
         return Event.timestamp_from_datetime(self.date_time)
 
+    @property
     def end_time(self):
         return self.date_time + self.duration
 
@@ -179,18 +189,18 @@ class Visit(models.Model):
         return visits[0] if visits else None
 
     @classmethod
-    def update_from_openings(cls):
+    def update_from_openings(cls, rebuild=False):
         '''
         Creates new Visits as needed from newly created Openings.
 
         :param door: A Door instance
         '''
         # Find the last visit recorded
-        last_visit = self.last()
+        last_visit = cls.last()
 
         # Get all openings after the start of the last visit (we reasses the last visit too)
-        if last_opening:
-            new_openings = Opening.objects.filter(timestamp__gt=last_vist.timestamp).order_by("date_time")
+        if last_visit and not rebuild:
+            new_openings = Opening.objects.filter(date_time__gt=last_visit.date_time).order_by("date_time")
         # or all openings (if we have no visits for this door yet)
         else:
             new_openings = Opening.objects.all().order_by("date_time")
@@ -206,7 +216,7 @@ class Visit(models.Model):
             if gap > visit_threshold:
                 if visit_openings:
                     new_openings_by_visit.append(visit_openings)
-                visit_openings = []
+                    visit_openings = []
 
             visit_openings.append(opening)
             end_of_previous_opening = opening.end_time
@@ -220,9 +230,18 @@ class Visit(models.Model):
             start = openings[0].date_time
             end = openings[-1].end_time
             duration = end - start
-            visit = cls.objects.create(date_time=start,
-                                       duration=duration,
-                                       prior_quiet=gap)
+
+            # Consider these a useful secondary key, and check that we haven't already
+            # created this visit. If we have, use it and then proceed to updating the
+            # doors and overlaps.
+            try:
+                visit = cls.objects.get(date_time=start,
+                                        duration=duration,
+                                        prior_quiet=gap)
+            except cls.DoesNotExist:
+                visit = cls.objects.create(date_time=start,
+                                           duration=duration,
+                                           prior_quiet=gap)
 
             # Point all the openings in this visit to it
             for opening in openings:
@@ -240,8 +259,7 @@ class Visit(models.Model):
             # The number of doors already open when a door is openned can thus easily be determined by the non
             # zero entries for overlap time. timedelta() is a zero duration and we initialise the 2D block
             # with  zeros so that teh accumulator can just add overlaps as detected.
-            door_ids = Door.objects.all().values_list("id")
-            door_olap = {i: {j: timedelta() for j in door_ids} for i in door_ids}
+            door_olap = {i: {j: timedelta() for j in Door.ids} for i in Door.ids}
 
             # Check each opening of the visit in temporal order for overlapping spans in time.
             for opening in openings:
@@ -263,12 +281,15 @@ class Visit(models.Model):
                 previous_spans.append((span_end, span_door))
                 visit_doors.append(span_door)
 
-            for door_i in door_ids:
+            for door_i in Door.ids:
                 olap = []
-                for door_j in door_ids:
-                    if door_olap[door_i][door_j] > 0:
-                        olap.append(door_j)
-                visit_olaps.append(olap)
+                for door_j in Door.ids:
+                    if door_olap[door_i][door_j] > timedelta():
+                        olap.append((door_i, door_j, door_olap[door_i][door_j]))
+                if olap:
+                    visit_olaps.append(olap)
+
+            if visit.id == 19: breakpoint()
 
             visit.doors = visit_doors
             visit.overlaps = visit_olaps
@@ -285,13 +306,15 @@ class Opening(models.Model):
     duration = models.DurationField('Duration')
 
     door = models.ForeignKey(Door, related_name='openings', on_delete=models.PROTECT)
-    visit = models.ForeignKey(Visit, related_name='openings', on_delete=models.PROTECT, null=true)
+    visit = models.ForeignKey(Visit, related_name='openings', on_delete=models.PROTECT, null=True)
     open_event = models.ForeignKey(Event, related_name='openings', on_delete=models.PROTECT)
     close_event = models.ForeignKey(Event, related_name='closings', on_delete=models.PROTECT)
 
+    @property
     def timestamp(self):
         return Event.timestamp_from_datetime(self.date_time)
 
+    @property
     def end_time(self):
         return self.date_time + self.duration
 
@@ -308,20 +331,22 @@ class Opening(models.Model):
         return openings[0] if openings else None
 
     @classmethod
-    def update_from_events(cls, door):
+    def update_from_events(cls, door, rebuild=False):
         # Find the last opening recorded
-        last_opening = self.last(door)
+        last_opening = cls.last(door)
 
         # Get all events after it's closing event
-        if last_opening:
+        if last_opening and not rebuild:
             new_events = Event.objects.filter(door=door, timestamp__gt=last_opening.close_event.timestamp).order_by("timestamp")
         # or all events (if we have no openings for this door yet)
         else:
             new_events = Event.objects.filter(door=door).order_by("timestamp")
 
+        # Assume closed state from outset
+        # When there are no prior events it's just an aribtrary assumption (that we started collecting data when the door was shut)
+        # When we have prior data, the new events are based on the last observed closing, so by defintion at that point the door was closed
+        is_open = False
         opened = None
-        is_open = False  # Assume closed state from outset
-
         for event in new_events:
             if event.value == "Open":
                 if not is_open:
@@ -332,18 +357,30 @@ class Opening(models.Model):
                     # matching the subsequent Closed event so on every bounce we update
                     # our record of which event opened the door.
                     opened = event
-            elif event_value == "Closed":
+            elif event.value == "Closed":
                 if is_open:
                     open_time = event.date_time - opened.date_time
                     is_open = False
 
                     # We don't know which visit this belongs to yet, as Visits are updated
                     # from openings later. So visit is left empty,
-                    Opening.objects.create(date_time=opened,
+
+                    # We can treat the open and close events as a secondary key to check if
+                    # this opening is already recorded. We only need to create it if it's new.
+                    try:
+                        opening = cls.objects.get(open_event=opened, close_event=event)
+                        if opening.date_time != opened.date_time:
+                            log.warning("Aparant, unexpected, change in Opening date_time")
+                        if opening.duration != open_time:
+                            log.warning("Aparant, unexpected, change in Opening duration")
+                        if opening.door != door:
+                            log.warning("Aparant, unexpected, change in Opening door")
+                    except cls.DoesNotExist:
+                        cls.objects.create(date_time=opened.date_time,
                                            duration=open_time,
                                            door=door,
                                            open_event=opened,
-                                           closed_event=event)
+                                           close_event=event)
                 else:
                     # If multiple Closed events are in a row, we ignore all but the
                     # first one (which we consider having closed the opening) but
