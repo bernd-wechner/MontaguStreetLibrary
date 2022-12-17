@@ -15,6 +15,15 @@ import platform, sys, os
 from pathlib import Path
 from tzlocal import get_localzone
 
+SITE_TITLE = "Montagu Street Library"
+
+
+# Make sure the SITE_TITLE is visible in context
+# Add reference to this function under TEMPLATES
+def site_context(request):  # @UnusedVariable
+    return {"SITE_TITLE": SITE_TITLE}
+
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # This is where manage.py collectstatic will place all the static files
@@ -44,6 +53,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'reset_migrations',
+    'django_rich_views',
+    'Site',
     'Doors'
 ]
 
@@ -70,6 +81,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'Site.settings.site_context'
             ],
         },
     },

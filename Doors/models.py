@@ -1,3 +1,4 @@
+import humanize
 from datetime import datetime, timedelta
 
 from django.db import models
@@ -17,15 +18,16 @@ EVENT_SOURCES = {-1: "unknown",
 
 # Translate Tuya event IDs to a useful string describing the type of event
 # Based on https://developer.tuya.com/en/docs/cloud/0a30fc557f?id=Ka7kjybdo0jse
-EVENT_IDS = {1: "online",
-             2: "offline",
-             3: "device activation",
-             4: "device reset",
-             5: "command issuance",
-             6: "firmware upgrade",
-             7: "data report",
-             8: "device semaphore",
-             9: "device restart",
+EVENT_IDS = {-1: "unknown",
+              1: "online",
+              2: "offline",
+              3: "device activation",
+              4: "device reset",
+              5: "command issuance",
+              6: "firmware upgrade",
+              7: "data report",
+              8: "device semaphore",
+              9: "device restart",
              10: "timing information"}
 
 # translate door states True=Open, False=Closed
@@ -34,6 +36,15 @@ EVENT_IDS = {1: "online",
 # where Tuya make that translation for us.
 DOOR_STATES = { "true": "Open",
                 "false": "Closed" }
+
+# And Event Type to code map
+# Tuya only provide codes for "data report" events. But we give other event
+# types a code as well, as we store it in a database column anyhow, to group
+# related events.
+UPTIMECODE = "updown_state"
+
+EVENT_CODES = {"online": UPTIMECODE,
+               "offline": UPTIMECODE }
 
 # Defines the gap between openings that separates visits.
 # A gap this long or greater is classified a new visit.
@@ -125,27 +136,51 @@ class Event(models.Model):
         return DOOR_STATES[contact_state] if contact_state in DOOR_STATES else contact_state
 
     @classmethod
-    def save_logs(cls, door, log):
+    def save_logs(cls, door, log, verbosity=0):
         '''
         Given Tuya logs for a given door, will save the to the Events table
 
         :param door: a Door object
         :param log: a log as returned by tinytuya.Cloud.getdevicelog
+        :param verbosity: Django manage.py argument for Verbosity level; 0=minimal output, 1=normal output, 2=verbose output, 3=very verbose output
         '''
 
-        for event in log['result']['logs']:
+        added = 0
+        code_counts = {}
+        events = log['result']['logs']
+
+        if verbosity >= 2:
+            if events:
+                time_start = cls.datetime_from_timestamp(int(events[0]['event_time']))
+                time_end = cls.datetime_from_timestamp(int(events[-1]['event_time']))
+                print(f"Downloaded {len(events)} events between {time_start} and {time_end}, spanning {humanize.precisedelta(time_end-time_start)}.")
+            else:
+                print(f"Downloaded NO events.")
+
+        for event in events:
+            event_type = cls.type_from_int(event.get("event_id", None))
             event_code = event.get('code', None)
+            event_value = event.get("value", None)
+            event_timestamp = int(event['event_time'])
+            event_date_time = cls.door_state_from_contact_state(event_timestamp)
+            event_from = cls.source_from_int(int(event.get("event_from", None)))
+            event_value = cls.door_state_from_contact_state(event.get("value", ""))
 
-            if event_code == "doorcontact_state":
+            # Where Tuya do not provide codes, we store an informative one for our use.
+            if not event_code:
+                if event_type in EVENT_CODES:
+                    event_code = EVENT_CODES[event_type]
+
+            if not event_code in code_counts:
+                code_counts[event_code] = 0
+            code_counts[event_code] += 1
+
+            if verbosity >= 2:
+                print(f"\t{event_code}={event_value}")
+
+            if event_code in ("doorcontact_state", "battery_state") or event_type in ("online", "offline"):
                 try:
-                    event_timestamp = int(event['event_time'])
-                    event_date_time = cls.door_state_from_contact_state(event_timestamp)
-
                     if not Event.objects.filter(timestamp=event_timestamp, door=door).exists():
-                        event_from = cls.source_from_int(int(event.get("event_from", None)))
-                        event_type = cls.type_from_int(event.get("event_id", None))
-                        event_value = cls.door_state_from_contact_state(event.get("value", None))
-
                         event = Event(timestamp=event_timestamp,
                                       source=event_from,
                                       code=event_code,
@@ -155,9 +190,23 @@ class Event(models.Model):
 
                         event.save()
 
+                        if verbosity >= 3:
+                            print(f"\t\tSaved")
+
                         assert event.date_time == cls.datetime_from_timestamp(event_date_time), "Oops, timestamp issue"
+
+                        added += 1
+                    else:
+                        if verbosity >= 3:
+                            print(f"\t\tAlready in database.")
                 except Exception as E:
-                    pass
+                    if verbosity >= 3:
+                        print(f"\t\tEvent creation failed with: {E}.")
+
+        if verbosity >= 1:
+            print(f"Fetched {len(events)} events, saved {added} events.")
+            for code in code_counts:
+                print(f"\t{code_counts[code]} events with code '{code}' were downloaded.")
 
 
 class Visit(models.Model):
@@ -189,28 +238,40 @@ class Visit(models.Model):
         return visits[0] if visits else None
 
     @classmethod
-    def update_from_openings(cls, rebuild=False):
+    def update_from_openings(cls, rebuild=False, Rebuild=False, verbosity=0):
         '''
-        Creates new Visits as needed from newly created Openings.
+        Creates new_visits Visits as needed from newly created Openings.
 
-        :param door: A Door instance
+        :param rebuild: Rebuild all openings (process all events)
+        :param Rebuild: same as rebuild but delete all existing visits first (a hard reset)
+        :param verbosity: Django manage.py argument for Verbosity level; 0=minimal output, 1=normal output, 2=verbose output, 3=very verbose output
         '''
         # Find the last visit recorded
         last_visit = cls.last()
 
         # Get all openings after the start of the last visit (we reasses the last visit too)
-        if last_visit and not rebuild:
+        if last_visit and not (rebuild or Rebuild):
             new_openings = Opening.objects.filter(date_time__gt=last_visit.date_time).order_by("date_time")
         # or all openings (if we have no visits for this door yet)
         else:
+            if Rebuild:
+                cls.objects.all().delete()
             new_openings = Opening.objects.all().order_by("date_time")
+
+        if verbosity >= 2:
+            print(f"Processing {len(new_openings)} openings.")
 
         # Break new_openings down into sets of openings each one a visit
         new_openings_by_visit = []
         visit_openings = []
         end_of_previous_opening = datetime.min
         visit_threshold = timedelta(minutes=VISIT_SEPARATION)
+        existing_visits = []
+        new_visits = []
         for opening in new_openings:
+            if verbosity >= 2:
+                print(f"\tDoor {opening.door.id} opened at {opening.date_time} for {humanize.precisedelta(opening.duration,format='%0.1f')}")
+
             gap = opening.date_time - end_of_previous_opening
 
             if gap > visit_threshold:
@@ -223,6 +284,9 @@ class Visit(models.Model):
 
         if visit_openings:
             new_openings_by_visit.append(visit_openings)
+
+        if verbosity >= 2:
+            print(f"Identified {len(new_openings_by_visit)} visits (groups of openings, separated by at least {humanize.precisedelta(visit_threshold)}).")
 
         # Now create new Visits for each set of openings thus collected
         for openings in new_openings_by_visit:
@@ -238,10 +302,20 @@ class Visit(models.Model):
                 visit = cls.objects.get(date_time=start,
                                         duration=duration,
                                         prior_quiet=gap)
+
+                existing_visits.append(visit)
+
+                if verbosity >= 3:
+                    print(f"\tVisit already exists at {visit.date_time} for {humanize.precisedelta(visit.duration,format='%0.1f')}.")
             except cls.DoesNotExist:
                 visit = cls.objects.create(date_time=start,
                                            duration=duration,
                                            prior_quiet=gap)
+
+                new_visits.append(visit)
+
+                if verbosity >= 3:
+                    print(f"\tNew visit at {visit.date_time} for {humanize.precisedelta(visit.duration,format='%0.1f')}.")
 
             # Point all the openings in this visit to it
             for opening in openings:
@@ -287,13 +361,18 @@ class Visit(models.Model):
                     if door_olap[door_i][door_j] > timedelta():
                         olap.append((door_i, door_j, door_olap[door_i][door_j]))
                 if olap:
-                    visit_olaps.append(olap)
-
-            if visit.id == 19: breakpoint()
+                    visit_olaps.extend(olap)
 
             visit.doors = visit_doors
             visit.overlaps = visit_olaps
             visit.save()
+
+        if verbosity >= 1:
+            print(f"Processed {len(new_openings)} openings, saved {len(new_visits)} new visits.")
+            if len(new_visits) > 0:
+                print(f"\tfrom {new_visits[0].date_time} to {new_visits[-1].date_time}")
+            if len(existing_visits) > 0:
+                print(f"\tfound {len(existing_visits)} visits, reprocessed.")
 
 
 class Opening(models.Model):
@@ -306,7 +385,7 @@ class Opening(models.Model):
     duration = models.DurationField('Duration')
 
     door = models.ForeignKey(Door, related_name='openings', on_delete=models.PROTECT)
-    visit = models.ForeignKey(Visit, related_name='openings', on_delete=models.PROTECT, null=True)
+    visit = models.ForeignKey(Visit, related_name='openings', on_delete=models.SET_NULL, null=True)
     open_event = models.ForeignKey(Event, related_name='openings', on_delete=models.PROTECT)
     close_event = models.ForeignKey(Event, related_name='closings', on_delete=models.PROTECT)
 
@@ -331,23 +410,41 @@ class Opening(models.Model):
         return openings[0] if openings else None
 
     @classmethod
-    def update_from_events(cls, door, rebuild=False):
+    def update_from_events(cls, door, rebuild=False, Rebuild=False, verbosity=0):
+        '''
+        Update openings from new events (or all events if rebuild requested)
+
+        :param door: An instance of Door
+        :param rebuild: Rebuild all openings (process all events)
+        :param Rebuild: same as rebuild but delete all openings visits first (a hard reset)
+        :param verbosity: Django manage.py argument for Verbosity level; 0=minimal output, 1=normal output, 2=verbose output, 3=very verbose output
+        '''
         # Find the last opening recorded
         last_opening = cls.last(door)
 
         # Get all events after it's closing event
-        if last_opening and not rebuild:
-            new_events = Event.objects.filter(door=door, timestamp__gt=last_opening.close_event.timestamp).order_by("timestamp")
+        if last_opening and not (rebuild or Rebuild):
+            new_events = Event.objects.filter(door=door, code="doorcontact_state", timestamp__gt=last_opening.close_event.timestamp).order_by("timestamp")
         # or all events (if we have no openings for this door yet)
         else:
-            new_events = Event.objects.filter(door=door).order_by("timestamp")
+            if Rebuild:
+                cls.objects.filter(door=door).delete()
+            new_events = Event.objects.filter(door=door, code="doorcontact_state").order_by("timestamp")
+
+        if verbosity >= 2:
+            print(f"Processing {len(new_events)} Open/Close events for door {door.id}.")
 
         # Assume closed state from outset
         # When there are no prior events it's just an aribtrary assumption (that we started collecting data when the door was shut)
         # When we have prior data, the new events are based on the last observed closing, so by defintion at that point the door was closed
         is_open = False
         opened = None
+        existing_openings = []
+        new_openings = []
         for event in new_events:
+            if verbosity >= 2:
+                print(f"\t{event.value:6} at {event.date_time}")
+
             if event.value == "Open":
                 if not is_open:
                     opened = event
@@ -366,24 +463,163 @@ class Opening(models.Model):
                     # from openings later. So visit is left empty,
 
                     # We can treat the open and close events as a secondary key to check if
-                    # this opening is already recorded. We only need to create it if it's new.
+                    # this opening is already recorded. We only need to create it if it's new
                     try:
                         opening = cls.objects.get(open_event=opened, close_event=event)
                         if opening.date_time != opened.date_time:
-                            log.warning("Aparant, unexpected, change in Opening date_time")
+                            log.warning("Apparant, unexpected, change in Opening date_time")
                         if opening.duration != open_time:
-                            log.warning("Aparant, unexpected, change in Opening duration")
+                            log.warning("Apparant, unexpected, change in Opening duration")
                         if opening.door != door:
-                            log.warning("Aparant, unexpected, change in Opening door")
+                            log.warning("Apparant, unexpected, change in Opening door")
+
+                        existing_openings.append(opening)
+
+                        if verbosity >= 3:
+                            print(f"\t\tOpening already exists and has integrity.")
+
                     except cls.DoesNotExist:
-                        cls.objects.create(date_time=opened.date_time,
-                                           duration=open_time,
-                                           door=door,
-                                           open_event=opened,
-                                           close_event=event)
+                        opening = cls.objects.create(date_time=opened.date_time,
+                                                     duration=open_time,
+                                                     door=door,
+                                                     open_event=opened,
+                                                     close_event=event)
+                        new_openings.append(opening)
+
+                        if verbosity >= 3:
+                            print(f"\t\tOpening saved. Door {opening.door.id} opened at {opening.date_time} for {humanize.precisedelta(opening.duration,format='%0.1f')} ")
                 else:
                     # If multiple Closed events are in a row, we ignore all but the
                     # first one (which we consider having closed the opening) but
                     # recorde these ignored events.
                     pass
 
+        if verbosity >= 1:
+            print(f"Processed {len(new_events)} events, saved {len(new_openings)} new openings for door {door.id}.")
+            if len(new_openings) > 0:
+                print(f"\tfrom {new_openings[0].date_time} to {new_openings[-1].date_time}")
+            if len(existing_openings) > 0:
+                print(f"\tand found {len(existing_openings)} openings already saved.")
+
+
+class Uptime(models.Model):
+    '''
+    A reinterpretation of Events to pair Online and Offline events into an Up time record.
+
+    Created by scanning events, matching Online with Offline on a given door and recorded here.
+    '''
+    date_time = models.DateTimeField('Time')
+    duration = models.DurationField('Duration')
+
+    door = models.ForeignKey(Door, related_name='uptimes', on_delete=models.PROTECT)
+    online_event = models.ForeignKey(Event, related_name='went_up', on_delete=models.PROTECT)
+    offline_event = models.ForeignKey(Event, related_name='went_down', on_delete=models.PROTECT)
+
+    @property
+    def timestamp(self):
+        return Event.timestamp_from_datetime(self.date_time)
+
+    @property
+    def end_time(self):
+        return self.date_time + self.duration
+
+    @classmethod
+    def last(cls, door=None):
+        '''
+        Returns the last Uptime recorded or a given door
+        :param door: An instance of Door
+        '''
+        if door is None:
+            uptimes = cls.objects.all().order_by("-date_time")
+        else:
+            uptimes = cls.objects.filter(door=door).order_by("-date_time")
+        return uptimes[0] if uptimes else None
+
+    @classmethod
+    def update_from_events(cls, door, rebuild=False, Rebuild=False, verbosity=0):
+        '''
+        Update opensings from new events (or all events if rebuild requested)
+
+        :param door: An instance of Door
+        :param rebuild: Rebuild all uptimes (process all events)
+        :param Rebuild: Same as rebuild but delete all existing uptimes first (a hard reset)
+        :param verbosity: Django manage.py argument for Verbosity level; 0=minimal output, 1=normal output, 2=verbose output, 3=very verbose output
+        '''
+        # Find the last opening recorded
+        last_uptime = cls.last(door)
+
+        # Get all events after it's closing event
+        if last_uptime and not (rebuild or Rebuild):
+            new_events = Event.objects.filter(door=door, code=UPTIMECODE, timestamp__gt=last_uptime.online_event.timestamp).order_by("timestamp")
+        # or all events (if we have no openings for this door yet)
+        else:
+            if Rebuild:
+                cls.objects.filter(door=door).delete()
+            new_events = Event.objects.filter(door=door, code=UPTIMECODE).order_by("timestamp")
+
+        if verbosity >= 2:
+            print(f"Processing {len(new_events)} Up/Down events for the switch on door {door.id}.")
+
+        # Assume switch is down at outset
+        # When there are no prior events it's just an aribtrary assumption but a fair one as the switches ony come up for a state transmission
+        # When we have prior data, the new events are based on the last observed down event, so by defintion at that point the switch was down
+        is_up = False
+        up_event = None
+        existing_uptimes = []
+        new_uptimes = []
+        for event in new_events:
+            if verbosity >= 2:
+                print(f"\t{event.type:7} at {event.date_time}")
+
+            if event.type == "online":
+                if not is_up:
+                    up_event = event
+                    is_up = True
+                else:
+                    # If multiple Online events are in a row, the first of them is the one
+                    # we'll assume started the on-uptime, until an Offline event is reached.
+                    pass
+            elif event.type == "offline":
+                if is_up:
+                    up_duration = event.date_time - up_event.date_time
+                    is_up = False
+
+                    # We can treat the online and offline  events as a secondary key to check if
+                    # this uptime is already recorded. We only need to create it if it's new
+                    try:
+                        uptime = cls.objects.get(online_event=up_event, offline_event=event)
+                        if uptime.date_time != up_event.date_time:
+                            log.warning("Apparant, unexpected, change in Uptime date_time")
+                        if uptime.duration != up_duration:
+                            log.warning("Apparant, unexpected, change in Uptime duration")
+                        if uptime.door != door:
+                            log.warning("Apparant, unexpected, change in Uptime door")
+
+                        existing_uptimes.append(uptime)
+
+                        if verbosity >= 3:
+                            print(f"\t\tUptime already exists and has integrity.")
+
+                    except cls.DoesNotExist:
+                        uptime = cls.objects.create(date_time=up_event.date_time,
+                                                    duration=up_duration,
+                                                    door=door,
+                                                    online_event=up_event,
+                                                    offline_event=event)
+                        new_uptimes.append(uptime)
+
+                        if verbosity >= 3:
+                            print(f"\t\tUptime saved. Door {uptime.door.id} switch went up at {uptime.date_time} for {humanize.precisedelta(uptime.duration,minimum_unit='microseconds',format='%0.1f')} ")
+
+                else:
+                    # If multiple Closed events are in a row, we ignore all but the
+                    # first one (which we consider having closed the opening) but
+                    # recorde these ignored events.
+                    pass
+
+        if verbosity >= 1:
+            print(f"Processed {len(new_events)} events, saved {len(new_uptimes)} new uptimes for the switch on door {door.id}.")
+            if len(new_uptimes) > 0:
+                print(f"\tfrom {new_uptimes[0].date_time} to {new_uptimes[-1].date_time}")
+            if len(existing_uptimes) > 0:
+                print(f"\tand found {len(existing_uptimes)} openings already saved.")

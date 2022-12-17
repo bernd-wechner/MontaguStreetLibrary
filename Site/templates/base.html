@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+	{% load static %}
+	<title>{% block title %}{% endblock %}</title>
+
+	<link rel="stylesheet" type="text/css" href="{% static 'css/default.css' %}" />
+	<link rel="stylesheet" type="text/css" href="{% static 'django-rich-views/default.css' %}" />
+	<link rel="icon" href="{% static 'img/favicon.ico' %}">
+
+	<link rel="icon" href="{% static 'img/favicon-100x100.png' %}" sizes="32x32">
+	<link rel="icon" href="{% static 'img/favicon-300x300.png' %}" sizes="192x192">
+	<meta name="robots" content="NONE,NOARCHIVE" />
+	<meta charset="UTF-8" />
+
+	{% block styles %}{% endblock %}
+	{% block startscript %}{% endblock %}
+</head>
+
+<body class="body">
+	<!-- Container -->
+	<div id="container">
+	    <!-- HEADERS: header and subheader -->
+	    <div id="headers">
+		    <!-- HEADER -->
+		    <div id="header">
+		        {% block branding %}
+			        <div id="branding">
+			        	<a href="{% static 'img/logo.png' %}"><img src="{% static 'img/logo.png' %}" align=left height=70></a>
+						{# SITE_TITLE is set in the Django Settings file #}
+						<h1 id="site-name"><a href="/">{{SITE_TITLE}}</a></h1>
+			        </div>
+		        {% endblock %}
+
+		        {% block menu %}
+		        {% endblock %}
+
+		        {% block usertools %}
+		        {% endblock %}
+		    </div>
+		    <!-- END Header -->
+
+		    <div id="heading">
+		        {% block heading %}
+			        {% block content_title %}<h1><div id='title'>{% autoescape off %}{{ title }}{% endautoescape %}</div></h1>{% endblock %}
+			        {% block content_subtitle %}{% if subtitle %}<h2><div id='subtitle'>{% autoescape off %}{{ subtitle }}{% endautoescape %}<div></h2>{% endif %}{% endblock %}
+		        {% endblock %}
+		    </div>
+
+		    <div id="subheader">
+		        {% block submenu %}
+		        {% endblock %}
+		    </div>
+	    </div>
+
+		<div id="body">
+		    <!-- MESSAGES -->
+		    {% block messages %}
+		        {% if messages %}
+			    <div id="messages" class="messages">
+			        <ul class="messagelist">
+			        	{% for message in messages %}
+			          		<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+			        	{% endfor %}
+			        </ul>
+		        </div>
+		        {% endif %}
+		    {% endblock messages %}
+
+		    <!-- CONTENT -->
+		    <div id="content" class="content">
+		        {% block content %}{% endblock %}
+		        <br class="clear" />
+		    </div>
+		    <!-- END Content -->
+
+		    <!-- FOOTER -->
+		    {% block footer %}
+			    <div id="footer">{{footer}}</div>
+		    {% endblock %}
+		</div>
+		<!-- END Body -->
+	</div>
+	<!-- END Container -->
+</body>
+{% block endscript %}{% endblock %}
+<script>
+	// Monitor the headers div for size changes and respond by moving the content div
+	// Stops body text scrolling under the header
+	(new ResizeObserver(() => {
+		const height = getComputedStyle(document.getElementById("headers")).height;
+		document.getElementById("body").style.marginTop = height;
+	})).observe(document.getElementById("headers"));
+</script>
+</html>

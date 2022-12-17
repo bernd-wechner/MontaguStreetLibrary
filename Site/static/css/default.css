@@ -1,0 +1,71 @@
+:root {
+  --background-shaded: HSL(208, 100%, 93%);
+  --background-highlight: HSL(92, 100%, 93%);
+
+  /* From streetlibrary.org.au */
+  --background-menu: HSL(119.3,33.3%,51.8%);
+  --background-header: HSL(123.5,19.5%,82.9%);
+  --background-body: HSL(0,0%,100%)
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: var(--background-color);
+    font-size: 100%;
+}
+
+#headers {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: var(--background-header);
+    z-index: 99;
+}
+
+#header {
+    width: 100%;
+    padding: 10px;
+	box-sizing: border-box;
+    overflow: hidden;
+    background-color: var(--background-header);
+    color: #ffc;
+}
+
+#header a:link, #header a:visited {
+    color: #fff;
+}
+
+#header a:hover {
+    text-decoration: underline;
+}
+
+#heading {
+	background-color: var(--background-body);
+}
+
+/*
+	Headings have browser a specified margin which is transparent and not welcome in fixed headers
+	So we convert it to padding here for the heading and subheading of the page
+*/
+#heading h1 {
+	margin: 0 0 0 2ch; /* (top, right, bottom, and left) */
+	padding-top: 0.67em;
+	padding-left: 10px;
+	background-color: var(--background-body);
+}
+
+#heading h2 {
+	margin: 0;
+	padding-top: 0.67em;
+	padding-left: 10px;
+	background-color: var(--background-body);
+}
+
+#subheader {
+    width: 100%;
+    padding: 10px;
+	box-sizing: border-box;
+    overflow: hidden;
+    background-color: var(--background-body);
+}

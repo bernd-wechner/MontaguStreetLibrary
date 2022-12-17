@@ -37,6 +37,9 @@ class Command(BaseCommand):
     help = 'Displays current time'
 
     def handle(self, *args, **kwargs):
+        # Prevent accidental run until I fix it to backup events before hand and only aftern  an Are you sure warning
+        return
+
         # Forst reset the migrations, using https://pypi.org/project/django-reset-migrations/
         call_command('reset_migrations', 'Doors')
 
