@@ -1,0 +1,7 @@
+#!/bin/bash
+# The UWSGI app
+sudo ln -sf  /data/www/montagu.street-library.info/uwsgi_shelob.ini /etc/uwsgi/apps-enabled/montagu.street-library.ini
+
+# The SystemD timer/service
+sudo ln -sf  /data/www/montagu.street-library.info/MontaguStreetLibrary.service /etc/systemd/system/MontaguStreetLibrary.service
+sudo ln -sf  /data/www/montagu.street-library.info/MontaguStreetLibrary.timer /etc/systemd/system/MontaguStreetLibrary.timer

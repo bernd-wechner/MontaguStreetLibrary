@@ -15,6 +15,8 @@ import platform, sys, os
 from pathlib import Path
 from tzlocal import get_localzone
 
+DEBUG_CONFIG = False
+
 SITE_TITLE = "Montagu Street Library"
 
 
@@ -41,7 +43,7 @@ SECRET_KEY = '_@3h$dm+501eh7^-1w3t$j=005ly115t#)jktx21#a3xyp%ue1'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["street-library.info", "montagu.street-library.info", "127.0.0.1"]
 
 # Application definition
 
@@ -199,7 +201,7 @@ import django_rich_views.logs
 django_rich_views.logs.logger = log
 
 # Log some config debugs'reset_migrations'
-if DEBUG:
+if DEBUG_CONFIG:
     import django  # So we have access to the version for reporting
     import psutil  # So we can access process details
 

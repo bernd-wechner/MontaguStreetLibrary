@@ -1,10 +1,17 @@
-import humanize
+import humanize, calendar, numpy as np
 from datetime import datetime, timedelta
+from numbers import Number
+from isodate import parse_duration
+from collections import Counter
 
 from django.db import models
+from django.db.models import Count, Q
+from django.db.models.fields import DateField
+from django.db.models.functions import Trunc, TruncDate, Cast
 from django.core.serializers.json import DjangoJSONEncoder
-from django.contrib.gis.db.models.lookups import OverlapsAboveLookup
 from django.utils.functional import classproperty
+
+from django_rich_views.model import field_render, link_target_url
 
 from Site.logutils import log
 
@@ -30,12 +37,19 @@ EVENT_IDS = {-1: "unknown",
               9: "device restart",
              10: "timing information"}
 
+# JUst list the codes we support (for reference)
+CODES = ["doorcontact_state", "updown_state", "battery_state"]
+
 # translate door states True=Open, False=Closed
 # Deduced by comparing a log here with one on the web at:
 #     https://eu.iot.tuya.com/cloud/device/detail/
 # where Tuya make that translation for us.
-DOOR_STATES = { "true": "Open",
-                "false": "Closed" }
+# Note: This is an EVENT not a STATE
+DOOR_STATES = { "true": "Open",  # Moves the state from closed to open
+                "false": "Closed" }  # Moves teh state fro open to closed
+
+# The sensor only reports three battery states (alas).
+BATTERY_STATES = ["low", "middle", "high"]
 
 # And Event Type to code map
 # Tuya only provide codes for "data report" events. But we give other event
@@ -114,14 +128,57 @@ class Event(models.Model):
         return cls.objects.filter(openings=None, closings=None)
 
     @classmethod
+    def first(cls, code=None, door=None):
+        '''
+        Return the first event recorded for this door (or all doors)
+
+        :param door: And instance of Door
+        :param code: An Event code
+        '''
+        result = cls.objects.all()
+        if result:
+            if not door is None:
+                result = result.filter(door=door)
+            if not code is None:
+                result = result.filter(code=code)
+            result = result.order_by("timestamp")[0]
+
+        return result
+
+    @classmethod
+    def last(cls, code=None, door=None):
+        '''
+        Return the last event recorded for this door (or all doors)
+
+        On the very first run there are no events for the door so we catch the exception on trying to
+        return the fist and return None.
+
+        :param door: And instance of Door
+        :param code: An Event code
+        '''
+        result = cls.objects.all()
+        if result:
+            if not door is None:
+                result = result.filter(door=door)
+            if not code is None:
+                result = result.filter(code=code)
+            result = result.order_by("-timestamp")[0]
+
+        return result
+
+    @classmethod
     def datetime_from_timestamp(cls, tuya_timestamp):
-        # A Tuya timestamp is 1000 times a standard Python timestamp
+        # A Tuya timestamp is 1000 times a standard Python timestamp (milliseconds vs seconds)
         return datetime.fromtimestamp(tuya_timestamp / 1000)
 
     @classmethod
     def timestamp_from_datetime(cls, date_time):
-        # A Tuya timestamp is 1000 times a standard Python timestamp
+        # A Tuya timestamp is 1000 times a standard Python timestamp (milliseconds vs seconds)
         return datetime.timestamp(date_time) * 1000
+
+    @classmethod
+    def days_from_timestamp_diff(cls, tuya_timestamp_diff):
+        return tuya_timestamp_diff / 1000 / 60 / 60 / 24
 
     @classmethod
     def source_from_int(cls, source_int):
@@ -157,7 +214,7 @@ class Event(models.Model):
             else:
                 print(f"Downloaded NO events.")
 
-        for event in events:
+        for i, event in enumerate(events):
             event_type = cls.type_from_int(event.get("event_id", None))
             event_code = event.get('code', None)
             event_value = event.get("value", None)
@@ -176,7 +233,7 @@ class Event(models.Model):
             code_counts[event_code] += 1
 
             if verbosity >= 2:
-                print(f"\t{event_code}={event_value}")
+                print(f"\t{i} of {len(events)}, {event_date_time}: {event_code}={event_value}")
 
             if event_code in ("doorcontact_state", "battery_state") or event_type in ("online", "offline"):
                 try:
@@ -204,9 +261,131 @@ class Event(models.Model):
                         print(f"\t\tEvent creation failed with: {E}.")
 
         if verbosity >= 1:
-            print(f"Fetched {len(events)} events, saved {added} events.")
+            print(f"Door {door.id}: Fetched {len(events)} events, saved {added} events, {len(events)-added} events were already in the database.")
             for code in code_counts:
                 print(f"\t{code_counts[code]} events with code '{code}' were downloaded.")
+
+    @classproperty
+    def orphans(cls):
+        return cls.objects.filter(openings__isnull=True, closings__isnull=True, code='doorcontact_state')
+
+    @classmethod
+    def invalid_orphans(cls):
+        invalid_orphans = []  # Suggest something went wrong when generating openings
+        for o in cls.orphans:
+            n = o.neighbours
+            # The first and last event don't have neighbours at all and are valid orphans
+            # if orphans they be. And every other orphan has neighbours and these must be
+            # of the same value (open or close) to be a valid orphas, because if they
+            # differ that is precisely when they were found unmatched and orphaned.
+            valid = n[0] and n[1] and n[0].value == n[1].value
+            if not valid:
+                invalid_orphans.append(o)
+        return invalid_orphans
+
+    @classproperty
+    def histogram(cls):
+        # A basic count of all the events by code
+        code_counts = cls.objects.values('code').annotate(count=Count('code'))
+        event_counts = {c['code']: c['count'] for c in code_counts}
+        # And an extra entry for doorcontact_state events that have no associated opening (are orphaned)
+        event_counts['doorcontact_state_orphans'] = cls.orphans.count()
+        return event_counts
+
+    @classmethod
+    def battery_graph(cls, door=None):
+        '''
+        Returns a time series of battery states, for a given door or all doors
+
+        For one door it is a dict keyed on time, with a numeric battery state (3, 2, 1)
+        and for all doors it's a list of such dicts.
+
+        :param door: An instance of Door
+        '''
+        if door is None:
+            doors = Door.objects.all()
+        else:
+            doors = [door]
+
+        graphs = []
+        for door in doors:
+            graph = dict()
+            events = cls.objects.filter(door=door, code="battery_state").order_by("timestamp")
+            zero = events.first().timestamp
+            for event in events:
+                time_value = cls.days_from_timestamp_diff(event.timestamp - zero)
+                graph[time_value] = 1 + BATTERY_STATES.index(event.value)
+            graphs.append(graph)
+
+        return graphs[0] if len(graphs) == 1 else graphs
+
+    @property
+    def neighbours(self):
+        before = Event.objects.filter(door=self.door, code='doorcontact_state', timestamp__lt=self.timestamp).order_by("-timestamp")
+        after = Event.objects.filter(door=self.door, code='doorcontact_state', timestamp__gt=self.timestamp).order_by("timestamp")
+
+        Before = before[0] if before else None
+        After = after[0] if after else None
+
+        return (Before, After)
+
+    #########################################################################################
+    # Django Rich Views supports nuanced rendering of the object
+    def __str__(self):
+        '''
+        A basic default render. Should be on one line (contain no newlines, plain text.
+        '''
+        # Most codes have a value, uypdeown_state does not and records the value in type. Tuya!? Bizarre encoding.
+        if self.code == 'doorcontact_state':
+            value = f"Door {self.door.id} is {'opened' if self.value == 'Open' else 'closed'}"
+        elif self.code == 'battery_state':
+            value = f"Battery charge on door {self.door.id} is {self.value}"
+        elif self.code == 'updown_state':
+            value = f"Sensor on door {self.door.id} goes {self.type}"
+        else:
+            value = "ERROR: Unsupported event"
+
+        return f"{self.date_time} - {value}"
+
+    def __verbose_str__(self):
+        '''
+        A more verbose rendering but still on one line (contain no newlines), plain text.
+        '''
+        # TODO: Replicate __str__abobe and add the Opening ID with link, being None if no opening
+        # Concider for Nones also makring whether it's a  valid or invalid orphan.
+        return f"{self.date_time} - {self.code} - {self.type if self.code == 'updown_state' else self.value}"
+
+    def __rich_str__(self, link=None):
+        '''
+        A rich rendering which, should still be on one line (no newlines) but can contain hyperlinks
+
+        :param link: A django_rich_views.options.field_link_target
+        '''
+        if self.code == "doorcontact_state":
+            text = 'opened' if self.value == 'Open' else 'closed'
+            if self.openings:
+                opening = field_render(text, link_target_url(self.openings[0], link))
+            elif self.closings:
+                opening = field_render(text, link_target_url(self.closings[0], link))
+
+            return f"{self.date_time} - Door {self.door.id} has been {opening}"
+        elif self.code == "updown_state":
+            if self.went_up:
+                uptime = field_render(self.value, link_target_url(self.went_up[0], link))
+            elif self.went_down:
+                uptime = field_render(self.value, link_target_url(self.went_down[0], link))
+
+            return f"{self.date_time} - Door {self.door.id} sensor going {uptime}"
+        elif self.code == "battery_state":
+            return f"{self.date_time} - Door {self.door.id} battery charge is {self.value}"
+
+    def __detail_str__(self, link=None):
+        '''
+        A rich rendering that can contain hyperlinks and span multiple lines and include HTM for layout.
+
+        :param link: A django_rich_views.options.field_link_target
+        '''
+        # TODO: Like Rich but on a sedon line indented include the the paired event summary!
 
 
 class Visit(models.Model):
@@ -232,10 +411,162 @@ class Visit(models.Model):
     def end_time(self):
         return self.date_time + self.duration
 
+    @property
+    def olaps(self):
+        return [(olap[0], olap[1], parse_duration(olap[2])) for olap in self.overlaps]
+
     @classmethod
     def last(cls):
         visits = cls.objects.all().order_by("-date_time")
         return visits[0] if visits else None
+
+    @classmethod
+    def recent(cls, period=timedelta(days=7)):
+        '''
+        Returns the most recent visits (for a nice table of same on a web page)
+
+        :param period: A timedelta representing the most recent visits in that time.
+        '''
+        from_time = datetime.now() - period
+        return cls.objects.filter(date_time__gte=from_time).order_by("-date_time")
+
+    @classmethod
+    def histogram(cls, span="day", categories=None):
+        '''
+        Returns data for populating a histogram of visit counts.
+        In the form of a dict with category as key and count of visits and the value.
+
+        :param span:
+        :param categories:
+        '''
+        # Create buckets of timedelta:
+        #    hourly buckets for a delta of one day
+        #    daily buckets for delta of 7 days or one month
+        #    monthly buckets for delta of 1 year
+        if span == "day":
+            field = "date_time__hour"
+            visit_counts = cls.objects.all().values(field).annotate(count=Count(field)).order_by(field)
+            data = {f"{h}-{h+1 if h < 24 else 1}":0 for h in range(25)}
+            for count in visit_counts:
+                hour = count[field]
+                next_hour = hour + 1 if hour < 24 else 1
+                cat = f"{hour}-{next_hour}"
+                val = count["count"]
+                data[cat] = val
+            return data
+        elif span == "week":
+            field = "date_time__iso_week_day"
+            visit_counts = cls.objects.all().values(field).annotate(count=Count(field)).order_by(field)
+            data = {calendar.day_name[d]:0 for d in range(7)}
+            for count in visit_counts:
+                day = calendar.day_name[count[field] - 1]
+                val = count["count"]
+                data[day] = val
+            return data
+        elif span == "month":
+            field = "date_time__day"
+            visit_counts = cls.objects.all().values(field).annotate(count=Count(field)).order_by(field)
+            data = {str(d):0 for d in range(1, 32)}
+            for count in visit_counts:
+                day = str(count[field])
+                val = count["count"]
+                data[day] = val
+            return data
+        elif span == "year":
+            if categories == "months":
+                field = "date_time__month"
+                visit_counts = cls.objects.all().values(field).annotate(count=Count(field)).order_by(field)
+                data = {calendar.month_name[d]:0 for d in range(1, 13)}
+                for count in visit_counts:
+                    month = calendar.month_name[count[field]]
+                    val = count["count"]
+                    data[month] = val
+                return data
+            elif categories == "weeks":
+                field = "date_time__week"
+                visit_counts = cls.objects.all().values(field).annotate(count=Count(field)).order_by(field)
+                data = {str(d):0 for d in range(1, 53)}
+                for count in visit_counts:
+                    week = str(count[field])
+                    val = count["count"]
+                    data[week] = val
+                return data
+        elif span == "durations":
+            if categories is None:
+                categories = timedelta(minutes=1)
+            if isinstance(categories, timedelta):
+
+                def label(td, i):
+                    secs = round((i * td).total_seconds())
+                    mins, secs = divmod(secs, 60)
+                    return f"{mins}:{secs:02d}"
+
+                def label2(td, i):
+                    return f"{label(td, i)}-{label(td, i+1)}"
+
+                field = "duration"
+                durations = list(cls.objects.all().order_by(field).values_list(field))
+                longest = durations[-1][0]
+                cats = round(longest / categories)
+                visit_counts = {f"{label2(categories, c)}":0 for c in range(cats + 1)}
+                for d in durations:
+                    # d is a single value tuple (thanks Django!)
+                    c = round(d[0] / categories)
+                    visit_counts[f"{label2(categories, c)}"] += 1
+                return visit_counts
+            else:
+                return None
+        elif span == "quiet_times":
+            if categories is None:
+                categories = timedelta(minutes=1)
+            if isinstance(categories, timedelta):
+
+                def label(td, i):
+                    secs = round((i * td).total_seconds())
+                    mins, secs = divmod(secs, 60)
+                    hours, mins = divmod(mins, 60)
+                    return f"{hours}:{mins:02d}"
+
+                def label2(td, i):
+                    return f"{label(td, i)}-{label(td, i+1)}"
+
+                field = "prior_quiet"
+                # Consider any over 1 day outliers and ignore them.
+                # Missing data assumed to be the cause (for now)
+                quiets = list(cls.objects.filter(prior_quiet__lte=timedelta(days=1)).order_by(field).values_list(field))
+                longest = quiets[-1][0]
+                cats = round(longest / min(categories, timedelta(weeks=8)))
+                visit_counts = {f"{label2(categories, c)}":0 for c in range(cats + 1)}
+                for q in quiets:
+                    # d is a single value tuple (thanks Django!)
+                    c = round(q[0] / categories)
+                    visit_counts[f"{label2(categories, c)}"] += 1
+                return visit_counts
+            else:
+                return None
+        elif span == "per_days":
+            if categories is None:
+                categories = 1
+            if isinstance(categories, Number):
+                field = "date_time"
+                per_day_frequency = Counter(cls.objects.annotate(day=TruncDate('date_time')).values('day').annotate(count=Count('id')).values_list('count', flat=True))
+                # Order them and return
+                return dict(sorted(dict(per_day_frequency).items()))
+            else:
+                return None
+        elif span == "doors":
+            field = "doors"
+            doors = list(cls.objects.all().order_by(field).values_list(field))
+            visit_counts = {f"Door {d}":0 for d in Door.ids}
+            for d in doors:
+                # d is a single value tuple (thanks Django!)
+                doors_opened = set(d[0])
+                for door in doors_opened:
+                    visit_counts[f"Door {door}"] += 1
+            return visit_counts
+
+        else:
+            raise ValueError(f"No historgam defined for {categories=}, {span=}")
 
     @classmethod
     def update_from_openings(cls, rebuild=False, Rebuild=False, verbosity=0):
@@ -258,59 +589,74 @@ class Visit(models.Model):
                 cls.objects.all().delete()
             new_openings = Opening.objects.all().order_by("date_time")
 
-        if verbosity >= 2:
-            print(f"Processing {len(new_openings)} openings.")
+        if new_openings:
+            if verbosity >= 2:
+                print(f"Processing {len(new_openings)} openings.")
+        else:
+            if verbosity >= 2:
+                print(f"No new openings to process")
+            return
 
         # Break new_openings down into sets of openings each one a visit
         new_openings_by_visit = []
         visit_openings = []
-        end_of_previous_opening = datetime.min
+        previous_opening = new_openings[0].previous
+        end_of_previous_opening = previous_opening.date_time if previous_opening else new_openings[0].date_time
+        previous_gap = previous_opening.visit.prior_quiet if previous_opening else timedelta()
         visit_threshold = timedelta(minutes=VISIT_SEPARATION)
         existing_visits = []
         new_visits = []
+        first_new_opening = True
+        started_mid_visit = False
         for opening in new_openings:
-            if verbosity >= 2:
-                print(f"\tDoor {opening.door.id} opened at {opening.date_time} for {humanize.precisedelta(opening.duration,format='%0.1f')}")
-
             gap = opening.date_time - end_of_previous_opening
+
+            if verbosity >= 2:
+                print(f"\tDoor {opening.door.id} opened at {opening.date_time} for {humanize.precisedelta(opening.duration,format='%0.1f')} after {humanize.precisedelta(gap,format='%0.1f')}")
 
             if gap > visit_threshold:
                 if visit_openings:
-                    new_openings_by_visit.append(visit_openings)
+                    new_openings_by_visit.append((visit_openings, previous_gap))
                     visit_openings = []
+                    previous_gap = gap
+            elif first_new_opening and previous_opening:
+                started_mid_visit = True
+            first_new_opening = False
 
             visit_openings.append(opening)
             end_of_previous_opening = opening.end_time
 
+        # The last set of openings form  a visit without a gap defining them amd may cause us to
+        # start next update mid visit. But we group them as a provisional visit
         if visit_openings:
-            new_openings_by_visit.append(visit_openings)
+            new_openings_by_visit.append((visit_openings, previous_gap))
 
         if verbosity >= 2:
             print(f"Identified {len(new_openings_by_visit)} visits (groups of openings, separated by at least {humanize.precisedelta(visit_threshold)}).")
 
         # Now create new Visits for each set of openings thus collected
-        for openings in new_openings_by_visit:
+        for i, (openings, prior_quiet) in enumerate(new_openings_by_visit):
             # Create a new visit with those openings
-            start = openings[0].date_time
+            start = previous_opening.visit.date_time if (i == 0 and started_mid_visit) else openings[0].date_time
             end = openings[-1].end_time
             duration = end - start
 
-            # Consider these a useful secondary key, and check that we haven't already
-            # created this visit. If we have, use it and then proceed to updating the
-            # doors and overlaps.
             try:
-                visit = cls.objects.get(date_time=start,
-                                        duration=duration,
-                                        prior_quiet=gap)
+                # Consider the start time a pseudo key ... if a visit exists that started then it's our
+                # visit surely. It was created earlier and has a prior_quiet and a duration (which may
+                # be wrong because we may have an updated end time if we started mid visit above.
+                visit = cls.objects.get(date_time=start)
+
+                # Update the duration (we add this now to cater for the edge case of started_mid_visit)
+                # The visit will exits and need updating.
+                visit.duration = duration
 
                 existing_visits.append(visit)
 
                 if verbosity >= 3:
                     print(f"\tVisit already exists at {visit.date_time} for {humanize.precisedelta(visit.duration,format='%0.1f')}.")
             except cls.DoesNotExist:
-                visit = cls.objects.create(date_time=start,
-                                           duration=duration,
-                                           prior_quiet=gap)
+                visit = cls.objects.create(prior_quiet=prior_quiet, date_time=start, duration=duration)
 
                 new_visits.append(visit)
 
@@ -397,6 +743,11 @@ class Opening(models.Model):
     def end_time(self):
         return self.date_time + self.duration
 
+    @property
+    def previous(self):
+        earlier = self.__class__.objects.filter(date_time__lt=self.date_time).order_by("-date_time")
+        return earlier[0] if len(earlier) > 0 else None
+
     @classmethod
     def last(cls, door=None):
         '''
@@ -441,6 +792,7 @@ class Opening(models.Model):
         opened = None
         existing_openings = []
         new_openings = []
+        orphan_events = []
         for event in new_events:
             if verbosity >= 2:
                 print(f"\t{event.value:6} at {event.date_time}")
@@ -453,6 +805,7 @@ class Opening(models.Model):
                     # If multiple Open events are in a row, the last of them is the one
                     # matching the subsequent Closed event so on every bounce we update
                     # our record of which event opened the door.
+                    orphan_events.append(opened)
                     opened = event
             elif event.value == "Closed":
                 if is_open:
@@ -492,14 +845,17 @@ class Opening(models.Model):
                     # If multiple Closed events are in a row, we ignore all but the
                     # first one (which we consider having closed the opening) but
                     # recorde these ignored events.
+                    orphan_events.append(event)
                     pass
 
         if verbosity >= 1:
-            print(f"Processed {len(new_events)} events, saved {len(new_openings)} new openings for door {door.id}.")
+            print(f"Door {door.id}: Processed {len(new_events)} events, saved {len(new_openings)} new openings for door {door.id}.")
             if len(new_openings) > 0:
                 print(f"\tfrom {new_openings[0].date_time} to {new_openings[-1].date_time}")
             if len(existing_openings) > 0:
                 print(f"\tand found {len(existing_openings)} openings already saved.")
+            if len(orphan_events) > 0:
+                print(f"\tand found {len(orphan_events)} orphaned events (unmatched opens or closes).")
 
 
 class Uptime(models.Model):
@@ -618,8 +974,39 @@ class Uptime(models.Model):
                     pass
 
         if verbosity >= 1:
-            print(f"Processed {len(new_events)} events, saved {len(new_uptimes)} new uptimes for the switch on door {door.id}.")
+            print(f"Door {door.id}: Processed {len(new_events)} events, saved {len(new_uptimes)} new uptimes for the switch on door {door.id}.")
             if len(new_uptimes) > 0:
                 print(f"\tfrom {new_uptimes[0].date_time} to {new_uptimes[-1].date_time}")
             if len(existing_uptimes) > 0:
                 print(f"\tand found {len(existing_uptimes)} openings already saved.")
+
+    @classmethod
+    def histogram(cls):
+        '''
+        Returns data for populating a histogram of uptimes.
+        In the form of a dict with duration band as key and count of uptimes in that band and the value.
+        '''
+        uptimes = cls.objects.all().values_list('duration', flat=True)
+
+        # Get the uptimes in seconds ...
+        seconds = list(map(lambda d: d.total_seconds(), uptimes))
+
+        # Ask numpy to create some bins for us
+        bins = np.histogram_bin_edges(seconds, bins='auto')
+
+        # round the bin edges as numpy doesn't have a way of asking for that
+        bins = list(map(round, bins))
+        # Add 1s he last bin edge as if was roduned down if it was under 0.5 and would exclude durations above the original value if rounded down.
+        bins[-1] = bins[-1] + 1
+
+        # Now ask numpy to bin the values ...
+        hist = np.histogram(seconds, bins)
+
+        # Create category labels
+        labels = [f"{s}-{e}" for s, e in zip(bins[:-1], bins[1:])]
+
+        # Now create the dict we want to return
+        counts = hist[0]
+        histogram = {l:c for l, c in zip(labels, counts)}
+
+        return histogram

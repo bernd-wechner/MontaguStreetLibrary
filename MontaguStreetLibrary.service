@@ -1,0 +1,6 @@
+[Unit]
+Description=Montagu Street Library Tuya Sensor Data Download
+
+[Service]
+Type=oneshot
+ExecStart=/data/www/montagu.street-library.info/fetch_logs

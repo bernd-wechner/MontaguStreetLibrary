@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer for Montagu Street Library Tuya Sensor Data Download
+Requires=MontaguStreetLibrary.service
+
+[Timer]
+# 6 pm every day
+OnCalendar=*-*-* 18:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

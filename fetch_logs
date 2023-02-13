@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+home_dir=$(dirname "$0")
+venv_dir=/data/venv/MontaguStreetLibrary
+source ${venv_dir}/bin/activate
+python ${home_dir}/manage.py fetch_logs

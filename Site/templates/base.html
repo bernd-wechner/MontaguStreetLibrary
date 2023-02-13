@@ -1,17 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="NONE,NOARCHIVE" />
+
 	{% load static %}
+	{% load django-rich-views %}
 	<title>{% block title %}{% endblock %}</title>
 
+	{% include "django-rich-views/include/CDN_libs.html" %}
+
+    <!-- DRV CSS -->
+	<link rel="stylesheet" type="text/css" href="{% static 'django-rich-views/css/default.css' %}" />
+
+    <!-- Site CSS -->
 	<link rel="stylesheet" type="text/css" href="{% static 'css/default.css' %}" />
-	<link rel="stylesheet" type="text/css" href="{% static 'django-rich-views/default.css' %}" />
-	<link rel="icon" href="{% static 'img/favicon.ico' %}">
 
 	<link rel="icon" href="{% static 'img/favicon-100x100.png' %}" sizes="32x32">
-	<link rel="icon" href="{% static 'img/favicon-300x300.png' %}" sizes="192x192">
-	<meta name="robots" content="NONE,NOARCHIVE" />
-	<meta charset="UTF-8" />
+	<link rel="icon" href="{% static 'img/favicon-340x340.png' %}" sizes="192x192">
 
 	{% block styles %}{% endblock %}
 	{% block startscript %}{% endblock %}
@@ -19,17 +27,131 @@
 
 <body class="body">
 	<!-- Container -->
-	<div id="container">
+	<div id="container" class="container-fluid">
+	    <div id="headers" class="row">
+			<div id="header">
+				<nav class="navbar navbar-expand-lg nav-pills">
+					<div class="container-fluid">
+						<div class="navbar-brand">
+							<a href="#">
+								<img id="logo" src="{% static 'img/logo.png' %}" class="d-inline-block align-top" alt="" width=283px height=70px>
+							</a>
+						    <h1 id="site-title">{{SITE_TITLE}}</h1>
+						</div>
+						<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+						  <span class="navbar-toggler-icon"></span>
+						</button>
+						<div class="collapse navbar-collapse" id="menu">
+							<ul class="navbar-nav">
+								{% for nav_target in menu_items %}
+									<li class="nav-item">
+										<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>
+									</li>
+								{% endfor %}
+{#								<li class="nav-item">#}
+{#									{% setvar "{{menu_item}}" as nav_target %}#}
+{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
+{#								</li>#}
+{#								<li class="nav-item">#}
+{#									{% setvar "recent" as nav_target %}#}
+{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
+{#								</li>#}
+{#								<li class="nav-item">#}
+{#									{% setvar "trends" as nav_target %}#}
+{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
+{#								</li>#}
+{#								<li class="nav-item">#}
+{#									{% setvar "technical" as nav_target %}#}
+{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
+{#								</li>#}
+							</ul>
+						</div>
+					</div>
+				</nav>
+			</div>
+		</div>
+
+		<div id="body">
+		    <!-- MESSAGES -->
+		    {% block messages %}
+		        {% if messages %}
+			    <div id="messages" class="messages" class="row">
+			        <ul class="messagelist">
+			        	{% for message in messages %}
+			          		<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+			        	{% endfor %}
+			        </ul>
+		        </div>
+		        {% endif %}
+		    {% endblock messages %}
+
+		    <!-- CONTENT -->
+		    <div id="content" class="content row">
+		        {% block content %}{% endblock %}
+		        <br class="clear" />
+		    </div>
+		    <!-- END Content -->
+
+		    <!-- FOOTER -->
+		    {% block footer %}
+			    <div id="footer" class="row">{{footer}}</div>
+		    {% endblock %}
+		</div>
+	</div>
+
+{% comment %}
+	<!-- Container -->
+	<div id="container" class="container-fluid">
 	    <!-- HEADERS: header and subheader -->
-	    <div id="headers">
+	    <div id="headers" class="row">
 		    <!-- HEADER -->
 		    <div id="header">
+			    <!-- BOOTSTRAT EXPERIMENTS -->
+				<nav class="navbar navbar-expand-lg navbar-light">
+					<div class="navbar-brand">
+						<a href="#">
+							<img id="logo" src="{% static 'img/logo.png' %}" class="d-inline-block align-top" alt="">
+						</a>
+					    <h1 id="site-title">{{SITE_TITLE}}</h1>
+					</div>
+					<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuitems">
+				 		<span class="navbar-toggler-icon"></span>
+					</button>
+					<div class="collapse navbar-collapse" id="menuitems">
+						<div class="navbar-nav">
+							<a class="nav-item nav-link active" href="#">Home</a>
+							<a class="nav-item nav-link" href="#">Recent</a>
+							<a class="nav-item nav-link" href="#">Trends</a>
+							<a class="nav-item nav-link href="#">Technical</a>
+						</div>
+					</div>
+				</nav>
+				{% xendcomment %}
+				<nav class="navbar navbar-expand-lg bg-body-tertiary">
+				  <div class="container-fluid">
+				    <a class="navbar-brand" href="#">Navbar</a>
+				    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
+				      <span class="navbar-toggler-icon"></span>
+				    </button>
+				    <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+				      <div class="navbar-nav">
+				        <a class="nav-link active" aria-current="page" href="#">Home</a>
+				        <a class="nav-link" href="#">Features</a>
+				        <a class="nav-link" href="#">Pricing</a>
+				        <a class="nav-link disabled">Disabled</a>
+				      </div>
+				    </div>
+				  </div>
+				</nav>
+
 		        {% block branding %}
-			        <div id="branding">
-			        	<a href="{% static 'img/logo.png' %}"><img src="{% static 'img/logo.png' %}" align=left height=70></a>
-						{# SITE_TITLE is set in the Django Settings file #}
-						<h1 id="site-name"><a href="/">{{SITE_TITLE}}</a></h1>
-			        </div>
+{#			        <div id="branding">#}
+{#			        	<a href="https://streetlibrary.org.au/library/montagu-street-library">#}
+{#			        		<img id="logo" src="{% static 'img/logo.png' %}">#}
+{#			        	</a>#}
+{#						{# SITE_TITLE is set in the Django Settings file #}
+{#						<h1 id="site-title">{{SITE_TITLE}}</h1>#}
+{#			        </div>#}
 		        {% endblock %}
 
 		        {% block menu %}
@@ -57,7 +179,7 @@
 		    <!-- MESSAGES -->
 		    {% block messages %}
 		        {% if messages %}
-			    <div id="messages" class="messages">
+			    <div id="messages" class="messages" class="row">
 			        <ul class="messagelist">
 			        	{% for message in messages %}
 			          		<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
@@ -68,7 +190,7 @@
 		    {% endblock messages %}
 
 		    <!-- CONTENT -->
-		    <div id="content" class="content">
+		    <div id="content" class="content row">
 		        {% block content %}{% endblock %}
 		        <br class="clear" />
 		    </div>
@@ -76,14 +198,16 @@
 
 		    <!-- FOOTER -->
 		    {% block footer %}
-			    <div id="footer">{{footer}}</div>
+			    <div id="footer" class="row">{{footer}}</div>
 		    {% endblock %}
 		</div>
 		<!-- END Body -->
 	</div>
 	<!-- END Container -->
+	{% endcomment %}
 </body>
 {% block endscript %}{% endblock %}
+
 <script>
 	// Monitor the headers div for size changes and respond by moving the content div
 	// Stops body text scrolling under the header
@@ -92,4 +216,5 @@
 		document.getElementById("body").style.marginTop = height;
 	})).observe(document.getElementById("headers"));
 </script>
+
 </html>

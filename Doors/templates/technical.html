@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Montagu Street Library - The Nitty Gritty{% endblock %}
+
+{% block startscript %}
+	{% for js in uptime_histogram.JSfiles %}
+		<script src="{{js}}"></script>
+	{% endfor %}
+	{{uptime_histogram.script | safe}}
+	{% for graph in battery_graphs.values %}
+		{{graph.script | safe}}
+	{% endfor %}
+{% endblock %}
+
+{% block content %}
+<p>The data collected for the Montagu Street Library is collected using 4 door sensors.</p>
+<p>They are battery powered and to maximise battery life, and minimise the need to change them, they go to sleep effectively shutting down until activated by a door opening.</p>
+<p>When a switch opens it sends a signal and when it closes it sends a signal and these are termed events (Opening, and Closing).</p>
+<p>With each activation it also reports that it's connected and it's connected to the internet and when it's done that it's going to sleep again.</p>
+<p>And finally, with each such event it sends along a course measure thet battery state.</p>
+<p>This pages presents a summary fo data in that space, the itty gritty behind visit measurements.</p>
+
+<h1>Uptime Statistics</h1>
+
+<dl>
+	<dt>Number of uptimes recorded:</dt><dd>{{count_uptimes}}</dd>
+	<dt>Minimum uptime:</dt>			<dd>{% precisedelta min_uptime 'seconds' format='%.1f' %}</dd>
+	<dt>Average uptime:</dt>			<dd>{% precisedelta avg_uptime 'seconds' format='%.1f' %}</dd>
+	<dt>Maximum uptime:</dt>			<dd>{% precisedelta max_uptime 'seconds' format='%.1f' %}</dd>
+</dl>
+
+<div style="width:50%; height:350px">{{uptime_histogram.div | safe}}</div>
+
+<h1>Battery Charge</h1>
+
+<p>The sensors deliver only very course battery charge indicators, one of three values, low, medium or high.
+These are graphed as 1 2 and 3 respectively over time for each door, to monitor the rate of battery drain and project the best time to replace them.</p>
+
+{% for door, graph in battery_graphs.items %}
+	<h2>Door {{door}}</h2>
+	<div style="width:50%; height:150px">{{graph.div | safe}}</div>
+{% endfor %}
+
+<h1>Orphan Door Events</h1>
+
+<p>The sensors send a Open event when the door opens and and Close event when the door closes. An opening is one such pair, an Open Event paired with a Close event.</p>
+
+<p>Now and then an event might be missed, and we'll see Open, Open, Close, or Open, Close, Close sequences.</p>
+
+<p>In the case of Open, Open, Close, the last of the Opens is paired with the Close. The earlier ones are orphans.</p>
+
+<p>In the case of Open, Close, Close, the first of the Closes is paired with the Open. The later ones are orphans.</p>
+
+<p>Here is a list of orphans on record. They should ideall be few and can of course be cleaned up in the database (tossed out).</p>
+
+<table>
+<tr><th>Time</th><th>Door</th><th>Signals Before</th><th>Orphan Signal</th><th>Signals After</th></tr>
+{% for o in orphans %}
+	<tr><td>{{o.date_time}}</td><td>{{o.door.id}}</td><td>{{o.neighbours.0.neighbours.0.value}}, {{o.neighbours.0.value}}</td><td>{{o.value}}</td><td>{{o.neighbours.1.value}}, {{o.neighbours.1.neighbours.1.value}}</td></tr>
+{% endfor %}
+</table>
+
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Montagu Street Library{% endblock %}
+
+{% block startscript %}
+{% endblock %}
+
+{% block content %}
+<div id="summary" class="row">
+	<h1>Data Collected</h1>
+
+	<dl>
+		<dt>First Event recorded:</dt>	<dd>{{data_stats.first_event}}</dd>
+		<dt>Latest Event recorded:</dt>	<dd>{{data_stats.last_event}}</dd>
+		<dt>Spanning:</dt>				<dd>{% precisedelta data_stats.time_span 'days' format='%d' %}</dd>
+		<dt>Openings recorded:</dt>		<dd>{{data_stats.open_count}}</dd>
+		<dt>Visits recorded:</dt>		<dd>{{data_stats.visit_count}}</dd>
+	</dl>
+
+	An opening consistes of two events, a door open and door close event.<br>
+	A visit consists of grouped openings at least {{ data_stats.visit_separation }} minutes apart from any other group openings.
+</div>
+
+<div id="recent_visits" class="row">
+	<h1>Recent Visits</h1>
+
+	<p>Visits in the Last Week (7 Days)</p>
+
+	<table>
+		<thead>
+			<tr>
+				<th style="text-align: right">When</th>
+				<th style="text-align: right">At</th>
+				<th style="text-align: right">How long</th>
+				<th style="text-align: left">Doors Opened (in sequence)</th>
+				<th style="text-align: right">After a Quiet Time of ...</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for v in recent_visits %}
+				<tr>
+					<td style="White-space: nowrap; vertical-align: top; text-align: right;">{% naturaltime v.date_time %}</td>
+					<td style="White-space: nowrap; vertical-align: top; text-align: right;">{{ v.date_time|date:"l d M Y, H:i"}}</td>
+					<td style="White-space: nowrap; vertical-align: top; text-align: right;">{% precisedelta v.duration 'seconds' format='%.1f' %}</td>
+					<td style="White-space: nowrap; vertical-align: top; margin-right:3ch;">{{v.doors|join:", " }}</td>
+					<td style="White-space: nowrap; vertical-align: top; text-align: right;">{% precisedelta v.prior_quiet 'minutes' format='%d' %}</td>
+				</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endblock %}

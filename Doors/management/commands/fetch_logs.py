@@ -58,18 +58,23 @@ class Command(BaseCommand):
         verbosity = kwargs['verbosity']
 
         for door in Door.objects.all():
-            # log = cloud.getdevicelog(door.tuya_device_id, start=min_tuya_timestamp, end=max_tuya_timestamp)
-            log = cloud.getdevicelog(door.tuya_device_id, start=0, end=0)
+            last = Event.last(door=door)
+            start = last.timestamp - 1  if last else  min_tuya_timestamp
+            log = cloud.getdevicelog(door.tuya_device_id, start=start, end=max_tuya_timestamp)
 
-            # JUst some sniffers while debugging
-            row_key = log['result'].get('current_row_key', None)
-            has_next = log['result'].get('has_next', False)
-            next_row_key = log['result'].get('next_row_key', None)
-            fetches = log.get('fetches', 1)
-            events = log['result'].get('logs', [])
+            # Just some sniffers while debugging
+            if 'result' in log:
+                row_key = log['result'].get('current_row_key', None)
+                has_next = log['result'].get('has_next', False)
+                next_row_key = log['result'].get('next_row_key', None)
+                fetches = log.get('fetches', 1)
+                events = log['result'].get('logs', [])
+            else:
+                print("No result in downloaded log.")
+                print(f"log: {log}")
 
             if verbosity > 0:
-                print(f"Fetched {len(events)} in {fetches} fetches.")
+                print(f"Door {door.id}: Fetched {len(events)} events in {fetches} fetches.")
 
             Event.save_logs(door, log, verbosity=verbosity)
             Opening.update_from_events(door, verbosity=verbosity)
@@ -77,4 +82,7 @@ class Command(BaseCommand):
 
         # A visit spans all doors (while an Opening concerns only one door)
         Visit.update_from_openings(verbosity=verbosity)
+
+        if verbosity > 0:
+            print(f"Done!")
 

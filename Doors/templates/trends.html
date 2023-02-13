@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Montagu Street Library{% endblock %}
+
+{% block startscript %}
+	{% for js in histogram_by_hour_of_day.JSfiles %}
+		<script src="{{js}}"></script>
+	{% endfor %}
+	{{histogram_by_per_day.script | safe}}
+	{{histogram_by_hour_of_day.script | safe}}
+	{{histogram_by_day_of_week.script | safe}}
+	{{histogram_by_day_of_month.script | safe}}
+	{{histogram_by_month_of_year.script | safe}}
+	{{histogram_by_week_of_year.script | safe}}
+	{{histogram_by_durations.script | safe}}
+	{{histogram_by_quiet_times.script | safe}}
+	{{histogram_by_doors.script | safe}}
+{% endblock %}
+
+{% block content %}
+<div id="graphs" class="row row-cols-1 row-cols-lg-2 ">
+    <div class="col-12">
+		<h1>Trends</h1>
+	</div>
+
+    <div class="col">
+		<h2>An histogram of visits per day.</h2>
+		<div class="graph">{{histogram_by_per_day.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram with time of day of visits.</h2>
+		<div class="graph">{{histogram_by_hour_of_day.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram with day of week of visits.</h2>
+		<div class="graph">{{histogram_by_day_of_week.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram with day of month of visits.</h2>
+		<div class="graph">{{histogram_by_day_of_month.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram with month of year of visits.</h2>
+		<div class="graph">{{histogram_by_month_of_year.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram with week of year of visits.</h2>
+		<div class="graph">{{histogram_by_week_of_year.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram of visit durations.</h2>
+		<div class="graph">{{histogram_by_durations.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram of quiet times.</h2>
+		<div class="graph">{{histogram_by_quiet_times.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>An histogram of visit door counts.</h2>
+		<div class="graph">{{histogram_by_doors.div | safe}}</div>
+	</div>
+
+</div>
+{% endblock %}
