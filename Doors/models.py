@@ -554,7 +554,7 @@ class Visit(models.Model):
                 return dict(sorted(dict(per_day_frequency).items()))
             else:
                 return None
-        elif span == "doors":
+        elif span == "visits_per_door":
             field = "doors"
             doors = list(cls.objects.all().order_by(field).values_list(field))
             visit_counts = {f"Door {d}":0 for d in Door.ids}
@@ -564,6 +564,12 @@ class Visit(models.Model):
                 for door in doors_opened:
                     visit_counts[f"Door {door}"] += 1
             return visit_counts
+        elif span == "doors_per_visit_total":
+            opening_frequency = Counter([o.openings.all().count() for o in cls.objects.all()])
+            return dict(sorted(dict(opening_frequency).items()))
+        elif span == "doors_per_visit_unique":
+            opening_frequency = Counter([len(set(o.openings.all().values_list('door__id', flat=True))) for o in cls.objects.all()])
+            return dict(sorted(dict(opening_frequency).items()))
 
         else:
             raise ValueError(f"No historgam defined for {categories=}, {span=}")

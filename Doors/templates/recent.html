@@ -8,8 +8,10 @@
 {% endblock %}
 
 {% block content %}
+<h1>Recent Updates (Data Collection)</h1>
+
 <div id="summary" class="row">
-	<h1>Data Collected</h1>
+	<h2>Data Collected</h2>
 
 	<dl>
 		<dt>First Event recorded:</dt>	<dd>{{data_stats.first_event}}</dd>
@@ -19,12 +21,14 @@
 		<dt>Visits recorded:</dt>		<dd>{{data_stats.visit_count}}</dd>
 	</dl>
 
-	An opening consistes of two events, a door open and door close event.<br>
-	A visit consists of grouped openings at least {{ data_stats.visit_separation }} minutes apart from any other group openings.
+	<div>
+		An opening consists of two events, a door open and door close event.<br>
+		A visit consists of grouped openings at least {{ data_stats.visit_separation }} minutes apart from any other group openings.
+	</div>
 </div>
 
 <div id="recent_visits" class="row">
-	<h1>Recent Visits</h1>
+	<h2>Recent Visits</h2>
 
 	<p>Visits in the Last Week (7 Days)</p>
 

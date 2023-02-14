@@ -27,194 +27,72 @@
 
 <body class="body">
 	<!-- Container -->
-	<div id="container" class="container-fluid">
-	    <div id="headers" class="row">
-			<div id="header">
-				<nav class="navbar navbar-expand-lg nav-pills">
-					<div class="container-fluid">
-						<div class="navbar-brand">
-							<a href="#">
-								<img id="logo" src="{% static 'img/logo.png' %}" class="d-inline-block align-top" alt="" width=283px height=70px>
-							</a>
-						    <h1 id="site-title">{{SITE_TITLE}}</h1>
-						</div>
-						<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-						  <span class="navbar-toggler-icon"></span>
-						</button>
-						<div class="collapse navbar-collapse" id="menu">
-							<ul class="navbar-nav">
-								{% for nav_target in menu_items %}
-									<li class="nav-item">
-										<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>
-									</li>
-								{% endfor %}
-{#								<li class="nav-item">#}
-{#									{% setvar "{{menu_item}}" as nav_target %}#}
-{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
-{#								</li>#}
-{#								<li class="nav-item">#}
-{#									{% setvar "recent" as nav_target %}#}
-{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
-{#								</li>#}
-{#								<li class="nav-item">#}
-{#									{% setvar "trends" as nav_target %}#}
-{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
-{#								</li>#}
-{#								<li class="nav-item">#}
-{#									{% setvar "technical" as nav_target %}#}
-{#									<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>#}
-{#								</li>#}
-							</ul>
-						</div>
-					</div>
-				</nav>
-			</div>
-		</div>
-
-		<div id="body">
-		    <!-- MESSAGES -->
-		    {% block messages %}
-		        {% if messages %}
-			    <div id="messages" class="messages" class="row">
-			        <ul class="messagelist">
-			        	{% for message in messages %}
-			          		<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
-			        	{% endfor %}
-			        </ul>
-		        </div>
-		        {% endif %}
-		    {% endblock messages %}
-
-		    <!-- CONTENT -->
-		    <div id="content" class="content row">
-		        {% block content %}{% endblock %}
-		        <br class="clear" />
-		    </div>
-		    <!-- END Content -->
-
-		    <!-- FOOTER -->
-		    {% block footer %}
-			    <div id="footer" class="row">{{footer}}</div>
-		    {% endblock %}
+    <div id="headers">
+		<div id="header">
+			<nav id="navbar" class="navbar navbar-expand-lg nav-pills static-top">
+				<div class="navbar-brand">
+					<a href="/">
+						<img id="logo" src="{% static 'img/logo.png' %}" class="d-inline-block align-top" alt="" width=283px height=70px>
+					</a>
+				    <h1 id="site-title">{{SITE_TITLE}}</h1>
+					<div class="clearfix"></div>
+				</div>
+				<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+				  <span class="navbar-toggler-icon"></span>
+				</button>
+				<div class="collapse navbar-collapse" id="menu">
+					<ul class="navbar-nav">
+						{% for nav_target in menu_items %}
+							<li class="nav-item">
+								<a class="nav-link{%active nav_target%}" data-toggle="pill" href="{% url nav_target %}">{{nav_target|title}}</a>
+							</li>
+						{% endfor %}
+					</ul>
+				</div>
+			</nav>
 		</div>
 	</div>
 
-{% comment %}
-	<!-- Container -->
-	<div id="container" class="container-fluid">
-	    <!-- HEADERS: header and subheader -->
-	    <div id="headers" class="row">
-		    <!-- HEADER -->
-		    <div id="header">
-			    <!-- BOOTSTRAT EXPERIMENTS -->
-				<nav class="navbar navbar-expand-lg navbar-light">
-					<div class="navbar-brand">
-						<a href="#">
-							<img id="logo" src="{% static 'img/logo.png' %}" class="d-inline-block align-top" alt="">
-						</a>
-					    <h1 id="site-title">{{SITE_TITLE}}</h1>
-					</div>
-					<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuitems">
-				 		<span class="navbar-toggler-icon"></span>
-					</button>
-					<div class="collapse navbar-collapse" id="menuitems">
-						<div class="navbar-nav">
-							<a class="nav-item nav-link active" href="#">Home</a>
-							<a class="nav-item nav-link" href="#">Recent</a>
-							<a class="nav-item nav-link" href="#">Trends</a>
-							<a class="nav-item nav-link href="#">Technical</a>
-						</div>
-					</div>
-				</nav>
-				{% xendcomment %}
-				<nav class="navbar navbar-expand-lg bg-body-tertiary">
-				  <div class="container-fluid">
-				    <a class="navbar-brand" href="#">Navbar</a>
-				    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
-				      <span class="navbar-toggler-icon"></span>
-				    </button>
-				    <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
-				      <div class="navbar-nav">
-				        <a class="nav-link active" aria-current="page" href="#">Home</a>
-				        <a class="nav-link" href="#">Features</a>
-				        <a class="nav-link" href="#">Pricing</a>
-				        <a class="nav-link disabled">Disabled</a>
-				      </div>
-				    </div>
-				  </div>
-				</nav>
+	<div id="body" class="container-fluid">
+	    <!-- MESSAGES -->
+	    {% block messages %}
+	        {% if messages %}
+		    <div id="messages" class="messages">
+		        <ul class="messagelist">
+		        	{% for message in messages %}
+		          		<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+		        	{% endfor %}
+		        </ul>
+	        </div>
+	        {% endif %}
+	    {% endblock messages %}
 
-		        {% block branding %}
-{#			        <div id="branding">#}
-{#			        	<a href="https://streetlibrary.org.au/library/montagu-street-library">#}
-{#			        		<img id="logo" src="{% static 'img/logo.png' %}">#}
-{#			        	</a>#}
-{#						{# SITE_TITLE is set in the Django Settings file #}
-{#						<h1 id="site-title">{{SITE_TITLE}}</h1>#}
-{#			        </div>#}
-		        {% endblock %}
-
-		        {% block menu %}
-		        {% endblock %}
-
-		        {% block usertools %}
-		        {% endblock %}
-		    </div>
-		    <!-- END Header -->
-
-		    <div id="heading">
-		        {% block heading %}
-			        {% block content_title %}<h1><div id='title'>{% autoescape off %}{{ title }}{% endautoescape %}</div></h1>{% endblock %}
-			        {% block content_subtitle %}{% if subtitle %}<h2><div id='subtitle'>{% autoescape off %}{{ subtitle }}{% endautoescape %}<div></h2>{% endif %}{% endblock %}
-		        {% endblock %}
-		    </div>
-
-		    <div id="subheader">
-		        {% block submenu %}
-		        {% endblock %}
-		    </div>
+	    <!-- CONTENT -->
+	    <div id="content" class="content">
+	        {% block content %}{% endblock %}
+	        <br class="clear" />
 	    </div>
+	    <!-- END Content -->
 
-		<div id="body">
-		    <!-- MESSAGES -->
-		    {% block messages %}
-		        {% if messages %}
-			    <div id="messages" class="messages" class="row">
-			        <ul class="messagelist">
-			        	{% for message in messages %}
-			          		<li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
-			        	{% endfor %}
-			        </ul>
-		        </div>
-		        {% endif %}
-		    {% endblock messages %}
-
-		    <!-- CONTENT -->
-		    <div id="content" class="content row">
-		        {% block content %}{% endblock %}
-		        <br class="clear" />
-		    </div>
-		    <!-- END Content -->
-
-		    <!-- FOOTER -->
-		    {% block footer %}
-			    <div id="footer" class="row">{{footer}}</div>
-		    {% endblock %}
-		</div>
-		<!-- END Body -->
+	    <!-- FOOTER -->
+	    {% block footer %}
+		    <div id="footer">{{footer}}</div>
+	    {% endblock %}
 	</div>
-	<!-- END Container -->
-	{% endcomment %}
 </body>
 {% block endscript %}{% endblock %}
 
 <script>
+	function place_body() {
+		const height = getComputedStyle(document.getElementById("navbar")).height;
+		const pos = getComputedStyle(document.getElementById("headers")).position;
+		if (pos == "fixed") document.getElementById("body").style.marginTop = height;
+	}
+
 	// Monitor the headers div for size changes and respond by moving the content div
-	// Stops body text scrolling under the header
-	(new ResizeObserver(() => {
-		const height = getComputedStyle(document.getElementById("headers")).height;
-		document.getElementById("body").style.marginTop = height;
-	})).observe(document.getElementById("headers"));
+	// Stops body text rendering or scrolling under the header
+	// This triggers on page load too for the initial render
+	(new ResizeObserver(place_body)).observe(document.getElementById("headers"));
 </script>
 
 </html>

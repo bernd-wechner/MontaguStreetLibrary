@@ -13,11 +13,34 @@
   --text-header3: rgb(41,125,46);
   --text-header4: #297d2e;
   --text-header5: #383;
+
+  /* Bootstraps default breakpoints as noted from:
+  	 https://getbootstrap.com/docs/5.0/layout/breakpoints/
+  	 Not using SASS here so to make the navbar fixed at top on lg
+  	 and higher and not on smaller we use CSS vars which alas the
+  	 standard BS CSS does not provide.
+  */
+  --bs-breakpoint-sm: 576px;
+  --bs-breakpoint-md: 768px;
+  --bs-breakpoint-lg: 992px;
+  --bs-breakpoint-xl: 1200px;
+  --bs-breakpoint-xxl: 1400px;
 }
 
 /* The navbar menu button uses --text-header literally as it doesn't support CSS vars */
 .navbar-light .navbar-toggler-icon {
-     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3e%3cpath stroke='HSL(123.6,50.6%,32.5%)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3e%3cpath stroke='HSL(123.6,50.6%,32.5%)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+  	background-color: transparent !important;
+}
+
+/* The media queries don't support CSS vars either  */
+@media (min-width: 992px) {
+  #headers {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+	z-index: 9999 !important;
+  }
 }
 
 .navbar {
@@ -30,14 +53,13 @@
 	color: var(--text-header);
 }
 
-.navbar-toggler-icon {
-  background-color: transparent !important;
-}
-
 body {
     font-family: Arial, Helvetica, sans-serif;
     background-color: var(--background-color);
     font-size: 100%;
+}
+
+#body {
     margin-left: 3ch;
     margin-right: 3ch;
 }
@@ -78,20 +100,19 @@ li {
 }
 
 #headers {
-    position: fixed;
+    /*position: fixed;
     top: 0;
-    left: 0;
+    left: 0;*/
     width: 100%;
     z-index: 99;
     padding: 0;
-    margin: 0;
+    margin: 0 0 1em 0; /* (top, right, bottom, and left) */
 }
 
 #header {
     width: 100%;
     padding: 10px;
 	box-sizing: border-box;
-    overflow: hidden;
     background-color: var(--background-header);
     color: var(--text-header);
 }
@@ -124,6 +145,10 @@ li {
 	box-sizing: border-box;
     overflow: hidden;
     background-color: var(--background-body);
+}
+
+.headerless {
+	margin-top: 1em;
 }
 
 .graph {

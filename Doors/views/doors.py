@@ -72,7 +72,12 @@ def histogram(data, category_label, value_label="Number of Visits", bar_color="g
     # plot.xaxis.formatter = formatter
 
     plot.y_range.start = 0
+
     plot.xaxis.major_label_orientation = math.pi / 2
+    plot.xaxis.major_label_text_font_size = "16px"
+    plot.yaxis.major_label_text_font_size = "16px"
+    plot.xaxis.axis_label_text_font_size = "20px"
+    plot.yaxis.axis_label_text_font_size = "20px"
 
     bars = plot.vbar(x=cats, top=vals, width=0.9, color=bar_color)
 
@@ -137,76 +142,6 @@ class HomePage(RichTemplateView):
 
     def extra_context_provider(self, context={}):
         return general_context(self, context)
-
-    #     # Extract colour information fromt he template
-    #     variables = get_css_custom_properties(template=self.template_name)
-    #     # This one is broken and needs diagnosing
-    #     # bar_color = variables.get("text-header2", None)
-    #     bar_color = variables.get("text-header", None)
-    #     if bar_color:
-    #         self.bar_color = parse_color(bar_color)
-    #         print(f"{bar_color} -> {self.bar_color}")
-    #     else:
-    #         self.bar_color = "red"
-    #
-    #     # match = re.search(r"HSL\(\s*(\d*\.?\d+)\s*,\s*(\d*\.?\d+)%\s*,\s*(\d*\.?\d+)%\s*\)", bar_color)
-    #     # if match:
-    #     #     h, s, l = map(float, match.groups())
-    #     #     r, g, b = hls_to_rgb(h / 360, l / 100, s / 100)
-    #     #     rgb_value = (int(r * 255), int(g * 255), int(b * 255))
-    #     #     self.bar_color = rgb_value
-    #
-    #     event_histogram = Event.histogram
-    #
-    #     # A little asertion here on data integrity. Not literallya serted (with an asert) because while
-    #     # teething in it has actually failed a fair bit. Just dumps enough diagnostics identify where
-    #     # the assertion fails.
-    #     orphans = len(Event.orphans)
-    #     io = Event.invalid_orphans()
-    #
-    #     allowance = 0
-    #     for door in Door.objects.all():
-    #         first = Event.first('doorcontact_state', door)
-    #         last = Event.last('doorcontact_state', door)
-    #         if first.value == 'Closed': allowance += 1
-    #         if last.value == 'Open': allowance += 1
-    #
-    #     if Opening.objects.all().count() * 2 + len(io) + allowance != event_histogram['doorcontact_state']:
-    #         log.debug("Databases inconsistency")
-    #         log.debug(f"\tEvents with code 'Door Contact State' : {event_histogram['doorcontact_state']}")
-    #         log.debug(f"\tEvents with code 'Door Contact State' that are orphans (have no associate Opening): {event_histogram['doorcontact_state_orphans']}")
-    #         log.debug(f"\tEvent.orphans: {orphans}")
-    #         log.debug(f"\tEvent.invalid_orphans: {len(io)}    An valid orphan is one in which the door contact states either side (before and after) are NOT identical.")
-    #         log.debug(f"\tA count of Openings: {Opening.objects.all().count()}")
-    #         log.debug(f"\tExpected events for {Opening.objects.all().count()} Openings: {Opening.objects.all().count()*2}")
-    #         log.debug(f"\tFirst events (Closed would be an orphan): {[Event.first('doorcontact_state', door).value for door in Door.objects.all()]}")
-    #         log.debug(f"\tLast events (Open would be an orphan): {[Event.last('doorcontact_state', door).value for door in Door.objects.all()]}")
-    #         log.debug(f"\tAllowance (being valid orphans, from First or Last): {allowance}")
-    #         log.debug(f"\tCheck sum: {Opening.objects.all().count()*2}+{len(io)}+{allowance}={Opening.objects.all().count()*2+len(io)+allowance} and should = {event_histogram['doorcontact_state']}")
-    #
-    #     first_event = Event.first().date_time
-    #     last_event = Event.last().date_time
-    #     context["data_stats"] = {
-    #         'first_event': first_event,
-    #         'last_event': last_event,
-    #         'time_span': last_event - first_event,
-    #         'event_count': event_histogram['doorcontact_state'],
-    #         'open_count': Opening.objects.all().count(),
-    #         'visit_count': Visit.objects.all().count(),
-    #         'visit_separation': VISIT_SEPARATION
-    #         }
-    #     context["recent_visits"] = Visit.recent()
-    #     context["histogram_by_per_day"] = histogram(Visit.histogram("per_days"), "Visits per Day", bar_color=self.bar_color)
-    #     context["histogram_by_hour_of_day"] = histogram(Visit.histogram("day"), "Hour of the Day", bar_color=self.bar_color)
-    #     context["histogram_by_day_of_week"] = histogram(Visit.histogram("week"), "Day of the Week", bar_color=self.bar_color)
-    #     context["histogram_by_day_of_month"] = histogram(Visit.histogram("month"), "Day of the Month", bar_color=self.bar_color)
-    #     context["histogram_by_month_of_year"] = histogram(Visit.histogram("year", "months"), "Month", bar_color=self.bar_color)
-    #     context["histogram_by_week_of_year"] = histogram(Visit.histogram("year", "weeks"), "Month", bar_color=self.bar_color)
-    #     context["histogram_by_durations"] = histogram(Visit.histogram("durations", timedelta(seconds=30)), "Visit Duration", bar_color=self.bar_color, tick_every=3)
-    #     context["histogram_by_quiet_times"] = histogram(Visit.histogram("quiet_times", timedelta(minutes=30)), "Quiet Time", bar_color=self.bar_color, tick_every=2)
-    #     context["histogram_by_doors"] = histogram(Visit.histogram("doors"), "Door", bar_color=self.bar_color)
-    #
-    #     return context
 
 
 class Recent(RichTemplateView):
@@ -287,7 +222,9 @@ class Trends(RichTemplateView):
         context["histogram_by_week_of_year"] = histogram(Visit.histogram("year", "weeks"), "Month", bar_color=self.bar_color)
         context["histogram_by_durations"] = histogram(Visit.histogram("durations", timedelta(seconds=30)), "Visit Duration", bar_color=self.bar_color, tick_every=3)
         context["histogram_by_quiet_times"] = histogram(Visit.histogram("quiet_times", timedelta(minutes=30)), "Quiet Time", bar_color=self.bar_color, tick_every=2)
-        context["histogram_by_doors"] = histogram(Visit.histogram("doors"), "Door", bar_color=self.bar_color)
+        context["histogram_by_doors"] = histogram(Visit.histogram("visits_per_door"), "Door", bar_color=self.bar_color)
+        context["histogram_total_doors_per_visit"] = histogram(Visit.histogram("doors_per_visit_total"), "Total Doors Opened", bar_color=self.bar_color)
+        context["histogram_unique_doors_per_visit"] = histogram(Visit.histogram("doors_per_visit_unique"), "Unique Doors Opened", bar_color=self.bar_color)
 
         return general_context(self, context)
 
