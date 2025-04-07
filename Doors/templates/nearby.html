@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Montagu Street Library - Nearby Street Libraries{% endblock %}
+
+{% block content %}
+	<h1>Nearby Street Libraries</h1>
+
+	<p>Street libraries are growing in popularit. It was the existence of a local street library during
+	the COVID lockdowns that provided us a reason to take our children for a walk to check it out now and
+	then. And it was this street library that inspired usto make one - ultimately</p>
+	<p>Well, first there was our neighbour's street lirbary. The tenant under our good neighbour Mary's
+	house put out an improvised street library one day after lockdowns ended. It was just one of those
+	plastic tubs that you can slide under you bed actually, resting on the very wide stone wall in front
+	of their house. Like this:</p>
+	<p><img src="{% static 'img/tub.png' %}" height=400px></p>
+	<p>The lid was off and an A4 sheet with something like "Library" scrawled on it.</p>
+	<p>We walked past it every morning on the way to school and every morning dropped a chiuldren's book into it.
+	They always disappeared, which was great, but none returned. Always adult books. So we kept on feeding it,
+	until the library disappeared, I suspect the tenant did. Oh well.</p>
+	<p>Shrug, so I asked the boys if maybe we should <a href="{% url 'build' %}">build</a> one. Sure, they said.
+	So we did.</p>
+	<p>In honour of the way a street library gave us a reason to walk somewhere, we added to it a brochure
+	holder, which we filled with A4 sheets, printed double sided, showing nearby street libraries, acting
+	as a walking guide for anyone who walked to this one. And started a Google map as well of those
+	libraries.</p>
+	<p>You can find those two additions to the library here: </p>
+	<p>	<a href="https://bit.ly/3OyZTt1" role="button" class="btn btn-primary btn-lg">Guide to Nearby Street Libraries</a>
+		<a href="https://bit.ly/3GYJWuL" role="button" class="btn btn-primary btn-lg">Map of Nearby Street Libraries</a></p>
+	<p></p>
+	<p></p>
+{% endblock %}

@@ -14,7 +14,7 @@
   --text-header4: #297d2e;
   --text-header5: #383;
 
-  /* Bootstraps default breakpoints as noted from:
+  /* Bootstrap's default breakpoints as noted from:
   	 https://getbootstrap.com/docs/5.0/layout/breakpoints/
   	 Not using SASS here so to make the navbar fixed at top on lg
   	 and higher and not on smaller we use CSS vars which alas the
@@ -53,6 +53,14 @@
 	color: var(--text-header);
 }
 
+.row {
+	margin-bottom: 1em;
+}
+
+.col {
+	padding-right: 5%;
+}
+
 body {
     font-family: Arial, Helvetica, sans-serif;
     background-color: var(--background-color);
@@ -70,6 +78,7 @@ h1 {
 
 p {
 	margin-top:0;
+	padding-right: 5%;
 }
 
 ul, ol {
@@ -148,7 +157,7 @@ li {
 }
 
 .headerless {
-	margin-top: 1em;
+	padding-top: 1em;
 }
 
 .graph {
@@ -167,7 +176,7 @@ a:link {
 
 a:visited {
     text-decoration: none;
-    color: blue;
+    /* color: blue; */
 }
 
 a.field_link:link {
@@ -190,12 +199,16 @@ a:active {
     color: blue;
 }
 
+table {
+	width: fit-content !important;
+}
+
 th {
 	text-align: left
 }
 
 td, th {
-   padding: 0 3ch;
+   padding: 0 3ch 0 0;
 }
 
 .bokeh div {
@@ -213,4 +226,5 @@ dt {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin-right: 2em;
 }

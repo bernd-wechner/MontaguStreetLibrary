@@ -2,7 +2,7 @@
 {% load static %}
 {% load humanize %}
 
-{% block title %}Montagu Street Library{% endblock %}
+{% block title %}{{SITE_TITLE}}{% endblock %}
 
 {% block startscript %}{% endblock %}
 
@@ -14,15 +14,17 @@
 
 	<p>The first half went up in January 2022, and the second in November of 2022. Door sensors are installed and have been collecting data since {{data_stats.first_event|date:"l d M Y"}}</p>
 
-	<p><img src="{% static 'img/door_numbers.jpg' %}" height=400px>/<p>
+	<p>Seating and landscaping has evolved over the same time</p>
+
+	<p><img src="{% static 'img/door_numbers.jpg' %}" height=400px> <img src="{% static 'img/seating.jpg' %}" height=400px></p>
 
 	<p>The doors are number 1 to 4 left to right for convenience and are currently labelled with guidelines as follows:</p>
 
 	<table>
-		<tr><th>Door 1     </th><th>Door 2 </th><th>Door 3          </th><th>Door 4</th></tr>
-		<tr><td>Non Fiction</td><td>Fiction</td><td>Fiction         </td><td>Fiction</td></tr>
-		<tr><td>Non Fiction</td><td>Fiction</td><td>Children's Books</td><td>Family Books</td></tr>
-		<tr><td>Puzzles    </td><td>Toys   </td><td>Children's Books</td><td>Games</td></tr>
+		<tr><th nowrap>Door 1     </th><th nowrap>Door 2 </th><th nowrap>Door 3          </th><th nowrap>Door 4</th></tr>
+		<tr><td nowrap>Non Fiction</td><td nowrap>Fiction</td><td nowrap>Fiction         </td><td nowrap>Fiction</td></tr>
+		<tr><td nowrap>Non Fiction</td><td nowrap>Fiction</td><td nowrap>Children's Books</td><td nowrap>Family Books</td></tr>
+		<tr><td nowrap>Puzzles    </td><td nowrap>Toys   </td><td nowrap>Children's Books</td><td nowrap>Games</td></tr>
 	</table>
 </div>
 {% endblock %}

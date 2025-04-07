@@ -2,13 +2,14 @@
 {% load static %}
 {% load humanize %}
 
-{% block title %}Montagu Street Library{% endblock %}
-
-{% block startscript %}
-{% endblock %}
+{% block title %}Montagu Street Library - Recent Activity{% endblock %}
 
 {% block content %}
 <h1>Recent Updates (Data Collection)</h1>
+
+<p>The Montagu Street Library has 4 doors, each equipped with a Sensor that reports the status of the door, open or closed, the status of the battery in it, and the status of it's WiFi connection (on-line or offline) which goes down between actuations to maximise battery lifetime.</p>
+
+<p>Here we present recent activity.</p>
 
 <div id="summary" class="row">
 	<h2>Data Collected</h2>
@@ -30,7 +31,7 @@
 <div id="recent_visits" class="row">
 	<h2>Recent Visits</h2>
 
-	<p>Visits in the Last Week (7 Days)</p>
+	<p>Visits in the Last Week (7 Days) as at {{data_stats.last_fetch|date:"l d M Y, H:i"}} (being the last time data was fetched from the logs)</p>
 
 	<table>
 		<thead>

@@ -15,9 +15,36 @@ import platform, sys, os
 from pathlib import Path
 from tzlocal import get_localzone
 
-DEBUG_CONFIG = False
+# Configure the context
+HOSTNAME = platform.node().lower()
 
-SITE_TITLE = "Montagu Street Library"
+# The name of the webserver this is running on (used to select deployment settings)
+# PRODUCTION = "shelob"
+# SANDBOX = "arachne"
+
+PRODUCTION = "arachne"
+SANDBOX = "shelob"
+
+SITE_IS_LIVE = HOSTNAME in [PRODUCTION, SANDBOX]
+
+DEBUG_CONFIG = True
+
+if HOSTNAME == PRODUCTION:
+    SITE_TITLE = "Montagu Street Library" 
+    DEBUG = False
+    WARNINGS = False
+elif HOSTNAME == SANDBOX:
+    SITE_TITLE = "Montagu Street Library Sandbox" 
+    DEBUG = True
+    WARNINGS = True
+else:
+    SITE_TITLE = "Montagu Street Library Development" 
+    DEBUG = True
+    WARNINGS = True
+
+# A Django Rich Views setting that includes bootstrap libs in
+# CDN_libs.html which can be included in templates.
+USE_BOOTSTRAP = True
 
 
 # Make sure the SITE_TITLE is visible in context
@@ -41,13 +68,19 @@ STATIC_URL = "/static/"
 SECRET_KEY = '_@3h$dm+501eh7^-1w3t$j=005ly115t#)jktx21#a3xyp%ue1'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = True # not SITE_IS_LIVE
 
-ALLOWED_HOSTS = ["street-library.info", "montagu.street-library.info", "127.0.0.1"]
+ALLOWED_HOSTS = ["street-library.info", 
+                 "montagu.street-library.info", 
+                 "sandbox.street-library.info", 
+                 "sandbox.montagu.street-library.info", 
+                 "127.0.0.1"]
 
 # Application definition
 
 INSTALLED_APPS = [
+    # "debug_toolbar",
+    "django_extensions",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -57,10 +90,11 @@ INSTALLED_APPS = [
     'reset_migrations',
     'django_rich_views',
     'Site',
-    'Doors'
+    'Doors',
 ]
 
 MIDDLEWARE = [
+    # "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -69,6 +103,16 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Add the lighttpd middleware if live
+if SITE_IS_LIVE:
+    WSGI_APPLICATION = 'Site.wsgi.application'
+    from django_lighttpd_middleware import METHOD
+    if METHOD == "middleware":
+        MIDDLEWARE = ['django_lighttpd_middleware.LighttpdMiddleware',] + MIDDLEWARE
+
+# Enable Django Debug Toolbar (Forced)
+# DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": lambda request: True}
 
 ROOT_URLCONF = 'Site.urls'
 
@@ -136,7 +180,6 @@ USE_L10N = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
-
 STATIC_URL = '/static/'
 
 # TUYA Settings
@@ -145,15 +188,6 @@ TUYA_KEY = "nsk4pxgkmmggs5ffqxkd"
 TUYA_SECRET = "7ae1449c9391466a85c3c427a1bfb1c9"
 TUYA_REGION = "eu"
 TUYA_DEVICE_ID = "bf1cd2c1afb79af64f1nkq"
-
-# Configure the context
-HOSTNAME = platform.node().lower()
-
-# The name of the webserver this is running on (used to select deployment settings)
-PRODUCTION = "shelob"
-SANDBOX = "arachne"
-
-SITE_IS_LIVE = HOSTNAME in [PRODUCTION, SANDBOX]
 
 # Configure logging
 LOGGING = {
@@ -169,12 +203,13 @@ LOGGING = {
 }
 
 if SITE_IS_LIVE:
-    # Only meaningful of logging is enabled on the Live site. Setting DEBUG to true here will enable debug logging of course.
+    # Only meaningful if logging is enabled on the Live site.
+    # Setting DEBUG to true here will enable debug logging of course.
     # In future could log requests one by one.
     LOGGING['handlers'] = { 'file': {
                                     'level': 'DEBUG',
                                     'class': 'logging.handlers.TimedRotatingFileHandler',
-                                    'filename': '/data/log/CoGs/django.log',
+                                    'filename': '/data/log/MontaguStreetLibrary/django.log',
                                     'when': 'midnight',
                                     'formatter': 'live'
                                     }
@@ -228,4 +263,6 @@ if DEBUG_CONFIG:
     log.debug(f"Static root: {STATIC_ROOT}")
     log.debug(f"Static file dirs: {locals().get('STATICFILES_DIRS', globals().get('STATICFILES_DIRS', []))}")
     log.debug(f"Database: {DATABASES['default']}")
+    log.debug(f"Site Title: {SITE_TITLE}")
     log.debug(f"Debug: {DEBUG}")
+

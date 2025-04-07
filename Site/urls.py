@@ -14,9 +14,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 
-from Doors.views.doors import HomePage, Recent, Trends, Technical
+from Doors.views.doors import HomePage, Recent, Trends, Technical, Nearby, Build
 from Doors.views.generic import view_List, view_Detail
 from Doors.views.ajax import ajax_List, ajax_Detail
 
@@ -25,6 +25,8 @@ urlpatterns = [
     path('recent/', Recent.as_view(), name='recent'),
     path('trends/', Trends.as_view(), name='trends'),
     path('technical/', Technical.as_view(), name='technical'),
+    path('nearby/', Nearby.as_view(), name='nearby'),
+    path('build/', Build.as_view(), name='build'),
     path('admin/', admin.site.urls, name='admin'),
 
     path('list/<model>', view_List.as_view(), name='list'),
@@ -32,4 +34,6 @@ urlpatterns = [
 
     path('json/<model>', ajax_List, name='get_list_html'),
     path('json/<model>/<pk>', ajax_Detail, name='get_detail_html'),
+
+    path('__debug__/', include('debug_toolbar.urls')),
 ]

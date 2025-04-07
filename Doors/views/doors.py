@@ -6,17 +6,20 @@ from datetime import timedelta
 from bokeh.plotting import figure
 from bokeh.embed import components
 from bokeh.models import FixedTicker, BasicTicker, SingleIntervalTicker, CategoricalTicker, Range1d, CategoricalTickFormatter, CustomJS
-from bokeh.resources import JSResources
+from bokeh.resources import Resources
 
 from django.db.models import Count, Min, Max, Avg
 
 from django_rich_views.views import RichTemplateView
 from django_rich_views.css import get_css_custom_properties, parse_color
 
-from Doors.models import Door, Visit, Event, Opening, Uptime, VISIT_SEPARATION
+from Doors.models import Door, Visit, Event, Opening, Uptime
+
+from .context import general_context
 
 from Site.logutils import log
 
+# An experiment, that failed
 custom_js = """
 return factors[tick % 2 == 0 ? tick / 2 : null];
 """
@@ -24,8 +27,8 @@ return factors[tick % 2 == 0 ? tick / 2 : null];
 
 def histogram(data, category_label, value_label="Number of Visits", bar_color="green", tick_every=1, max_xticks=30, max_yticks=40):
     # t = template.loader.get_template(self.template_name)
-    JS = JSResources(minified=False, mode='cdn')
-    # resources = Resources(minified=False, mode='cdn')
+    # JS = JSResources(minified=False, mode='cdn')
+    resources = Resources(minified=False, mode='cdn')
 
     cats = list(map(str, data.keys()))
     vals = list(data.values())
@@ -83,7 +86,7 @@ def histogram(data, category_label, value_label="Number of Visits", bar_color="g
 
     graph_script, graph_div = components(plot)
 
-    return {"JSfiles": JS.js_files, "script": graph_script, "div": graph_div}
+    return {"JSfiles": resources.js_files, "script": graph_script, "div": graph_div}
 
 
 def graph(data, xlabel, ylabel, line_color='green'):
@@ -125,18 +128,6 @@ def graph(data, xlabel, ylabel, line_color='green'):
     return {"JSfiles": JS.js_files, "script": graph_script, "div": graph_div}
 
 
-def general_context(self, context={}):
-    '''
-    Used by all the views to add some basic context for the base template
-
-    :param context: the context to augment (a dict)
-    '''
-    context['view_name'] = self.request.resolver_match.view_name
-    context['menu_items'] = ['home', 'recent', 'trends', 'technical']
-
-    return context
-
-
 class HomePage(RichTemplateView):
     template_name = "homepage.html"
 
@@ -148,17 +139,6 @@ class Recent(RichTemplateView):
     template_name = "recent.html"
 
     def extra_context_provider(self, context={}):
-        first_event = Event.first().date_time
-        last_event = Event.last().date_time
-        context["data_stats"] = {
-            'first_event': first_event,
-            'last_event': last_event,
-            'time_span': last_event - first_event,
-            'event_count': Event.histogram['doorcontact_state'],
-            'open_count': Opening.objects.all().count(),
-            'visit_count': Visit.objects.all().count(),
-            'visit_separation': VISIT_SEPARATION
-            }
         context["recent_visits"] = Visit.recent()
 
         return general_context(self, context)
@@ -214,17 +194,21 @@ class Trends(RichTemplateView):
             log.debug(f"\tAllowance (being valid orphans, from First or Last): {allowance}")
             log.debug(f"\tCheck sum: {Opening.objects.all().count()*2}+{len(io)}+{allowance}={Opening.objects.all().count()*2+len(io)+allowance} and should = {event_histogram['doorcontact_state']}")
 
+        # Visit histograms
         context["histogram_by_per_day"] = histogram(Visit.histogram("per_days"), "Visits per Day", bar_color=self.bar_color)
         context["histogram_by_hour_of_day"] = histogram(Visit.histogram("day"), "Hour of the Day", bar_color=self.bar_color)
         context["histogram_by_day_of_week"] = histogram(Visit.histogram("week"), "Day of the Week", bar_color=self.bar_color)
         context["histogram_by_day_of_month"] = histogram(Visit.histogram("month"), "Day of the Month", bar_color=self.bar_color)
         context["histogram_by_month_of_year"] = histogram(Visit.histogram("year", "months"), "Month", bar_color=self.bar_color)
         context["histogram_by_week_of_year"] = histogram(Visit.histogram("year", "weeks"), "Month", bar_color=self.bar_color)
-        context["histogram_by_durations"] = histogram(Visit.histogram("durations", timedelta(seconds=30)), "Visit Duration", bar_color=self.bar_color, tick_every=3)
-        context["histogram_by_quiet_times"] = histogram(Visit.histogram("quiet_times", timedelta(minutes=30)), "Quiet Time", bar_color=self.bar_color, tick_every=2)
-        context["histogram_by_doors"] = histogram(Visit.histogram("visits_per_door"), "Door", bar_color=self.bar_color)
+        context["histogram_by_durations"] = histogram(Visit.histogram("durations", timedelta(seconds=30)), "Visit Duration (min:sec)", bar_color=self.bar_color, tick_every=3)
+        context["histogram_by_quiet_times"] = histogram(Visit.histogram("quiet_times", timedelta(minutes=30)), "Quiet Time (min:sec)", bar_color=self.bar_color, tick_every=2)
         context["histogram_total_doors_per_visit"] = histogram(Visit.histogram("doors_per_visit_total"), "Total Doors Opened", bar_color=self.bar_color)
         context["histogram_unique_doors_per_visit"] = histogram(Visit.histogram("doors_per_visit_unique"), "Unique Doors Opened", bar_color=self.bar_color)
+
+        # Opening histograms
+        context["histogram_by_doors"] = histogram(Visit.histogram("opens_per_door"), "Door", value_label="Number of Openings", bar_color=self.bar_color)
+        context["histogram_by_opening_durations"] = histogram(Opening.histogram("durations", timedelta(seconds=30)), "Opening Duration (min:sec)", value_label="Number of Openings", bar_color=self.bar_color, tick_every=2)
 
         return general_context(self, context)
 
@@ -261,3 +245,15 @@ class Technical(RichTemplateView):
 
         return general_context(self, context)
 
+
+class Nearby(RichTemplateView):
+    template_name = "nearby.html"
+
+    def extra_context_provider(self, context={}):
+        return general_context(self, context)
+
+class Build(RichTemplateView):
+    template_name = "build.html"
+
+    def extra_context_provider(self, context={}):
+        return general_context(self, context)

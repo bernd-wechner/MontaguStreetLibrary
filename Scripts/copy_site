@@ -18,9 +18,11 @@ show_help_and_exit () {
 	echo "	-s	copies the site source code, sans the site media"
 	echo "	-m	copies the site media"
 	echo "	-d	copies the site database"
+	echo "	-S	copies the site database using SQL"
 	echo "	-v	copies the site venv (only useful where venvs have same path)"
 	echo "	-0	requests no action just a report of command line parsing"
 	echo "	-D	requests a dry run that echoes all commands that would be run (but aren't)"
+	echo "  -V verbose (add some extra diagnostic output)"
 	echo
 	echo "	source is the name of a webserver server to copy from ('localhost' assumed if not provided)"
 	echo "	destination is the name of a webserver server to copy to (required)"
@@ -40,21 +42,25 @@ show_help_and_exit () {
 copy_site=false
 copy_media=false
 copy_database=false
+copy_database_sql=false
 copy_venv=false
 
 test_args=false
 dry_run=false
+verbose=false
 
 copy_DB="$(dirname $(realpath $0))/copy_database"
 
-while getopts "smdv0Dh" flag; do
+while getopts "smdSv0DVh" flag; do
 	case "$flag" in
 	    s) copy_site=true ;;
 	    m) copy_media=true ;;
 	    d) copy_database=true ;;
+	    S) copy_database_sql=true ;;
 	    v) copy_venv=true ;;
 	    0) test_args=true ;;
 		D) dry_run=true ;;
+		V) verbose=true ;;
 		h) show_help_and_exit;;
 	esac
 done
@@ -80,17 +86,21 @@ if [ "$source_hostname" != "" ] && [ "$target_hostname" = "" ]; then
 	fi
 fi
 
-if [ "$test_args" = true ]; then
+if [ $test_args = true ] | [ $verbose = true ]; then
 	echo "copy_site: $copy_site"
 	echo "copy_media: $copy_media"
 	echo "copy_database: $copy_database"
+	echo "copy_database_sql: $copy_database_sql"
 	echo "copy_venv: $copy_venv"
 	echo "copy_DB: $copy_DB"
 	echo "test_args: $test_args"
 	echo "dry_run: $dry_run"
+	echo "verbose: $verbose"
 	echo "source_hostname: $source_hostname"
 	echo "target_hostname: $target_hostname"
-	exit
+	if [ $test_args = true ]; then
+		exit
+	fi
 fi;
 
 if [ "$target_hostname" = "" ]; then
@@ -117,7 +127,7 @@ server_site_bup="$server_site_dir.backup.$backup_timestamp"
 
 # localhost configs (Development machine - script must be run on the dev machine and it must have paswordless ssh access to the webserver)
 dev_site_dir="/home/bernd/workspace/MontaguStreetLibrary"
-dev_DRV_dir="/home/bernd/workspace/Django/django-rich-views/django_rich_views" # Under heavy development alongside
+dev_DRV_dir="/home/bernd/workspace/Django/django-rich-views/src/django_rich_views" # Under heavy development alongside
 dev_venv_dir="/home/bernd/.virtualenvs/MontaguStreetLibrary"
 
 # SERVER CONFIGS - name interpretation and user definition
@@ -285,7 +295,16 @@ fi
 
 # Copy site database if asked to
 if [ "$copy_database" = true ]; then
-	${prefix}$copy_DB "$source_host" "$target_host"
+	args=""
+	if [ $copy_database_sql = true ]; then args="$args -S"; fi
+	if [ $verbose = true ]; then args="$args -V"; fi
+	if [ $dry_run = true ]; then
+		# Skip the prefix on dryrun as the sub scrip will dry run
+		args="$args -D"
+		$copy_DB $args "$source_host" "$target_host"
+	else
+		${prefix}$copy_DB $args "$source_host" "$target_host"
+	fi
 fi
 
 # Copy venv if configured to

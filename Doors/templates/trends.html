@@ -2,7 +2,7 @@
 {% load static %}
 {% load humanize %}
 
-{% block title %}Montagu Street Library{% endblock %}
+{% block title %}Montagu Street Library - Trends{% endblock %}
 
 {% block startscript %}
 	{% for js in histogram_by_hour_of_day.JSfiles %}
@@ -17,15 +17,53 @@
 	{{histogram_by_durations.script | safe}}
 	{{histogram_by_quiet_times.script | safe}}
 	{{histogram_total_doors_per_visit.script | safe}}
-	{{histogram_unique_doors_per_visit.script | safe}}
+{#	{{histogram_unique_doors_per_visit.script | safe}}#}
 	{{histogram_by_doors.script | safe}}
+	{{histogram_by_opening_durations.script | safe}}
 {% endblock %}
 
 {% block content %}
-<div id="graphs" class="row row-cols-1 row-cols-lg-2 ">
-    <div class="col-12" style="width: 100%">
-		<h1>Library Utilisation Trends</h1>
+<div class="col-12" style="width: 100%">
+	<h1>Library Utilisation Trends</h1>
+
+	<p>The Montagu Street Library has 4 doors, each equipped with a Sensor that reports the status of the door, open or closed, the status of the battery in it, and the status of it's WiFi connection (on-line or offline) which goes down between actuations to maximise battery lifetime.</p>
+
+	<p>Here we present all manner of graphs based on collected data exploring trends of utilisation.</p>
+</div>
+
+
+<div id="summary" class="row cols-12">
+	<h2>Data Collected</h2>
+
+	<dl>
+		<dt>First Event recorded:</dt>	<dd>{{data_stats.first_event}}</dd>
+		<dt>Latest Event recorded:</dt>	<dd>{{data_stats.last_event}}</dd>
+		<dt>Spanning:</dt>				<dd>{% precisedelta data_stats.time_span 'days' format='%d' %}</dd>
+		<dt>Openings recorded:</dt>		<dd>{{data_stats.open_count}}</dd>
+		<dt>Visits recorded:</dt>		<dd>{{data_stats.visit_count}}</dd>
+	</dl>
+
+	<div>
+		An opening consists of two events, a door open and door close event.<br>
+		A visit consists of grouped openings at least {{ data_stats.visit_separation }} minutes apart from any other group openings.
 	</div>
+</div>
+
+<h2>A Bundle of Graphs</h2>
+<p>As at {{data_stats.last_fetch|date:"l d M Y, H:i"}} (being the last time data was fetched from the logs)</p>
+
+<div id="graphs" class="row row-cols-1 row-cols-lg-2 ">
+    <div class="col">
+		<h2>Time of day of visits</h2>
+		<div class="graph">{{histogram_by_hour_of_day.div | safe}}</div>
+	</div>
+
+    <div class="col">
+		<h2>Day of week of visits</h2>
+		<div class="graph">{{histogram_by_day_of_week.div | safe}}</div>
+	</div>
+
+
 
     <div class="col">
 		<h2>Visits per day</h2>
@@ -33,9 +71,11 @@
 	</div>
 
     <div class="col">
-		<h2>Time of day of visits</h2>
-		<div class="graph">{{histogram_by_hour_of_day.div | safe}}</div>
+		<h2>Total Door Openings in a Visit</h2>
+		<div class="graph">{{histogram_total_doors_per_visit.div | safe}}</div>
 	</div>
+
+
 
 	<div class="col">
 		<h2>Visit durations</h2>
@@ -48,8 +88,29 @@
 	</div>
 
     <div class="col">
-		<h2>Day of week of visits</h2>
-		<div class="graph">{{histogram_by_day_of_week.div | safe}}</div>
+		<h2>Door Opening durations</h2>
+		<div class="graph">{{histogram_by_opening_durations.div | safe}}</div>
+	</div>
+
+	{% comment %}
+	New graph(s) here for a 4th duration based one:
+
+		Duration of multidoor overlaps (five states, no doors open, one door open, two doors open, three doors open, four doors opon)
+
+		Tricky to present, this could be duration categories,count as height and 5 series (bars) But could be crowded and be the first dual)
+
+	This one is hard to place and justify the space. Seems alsmot better as flip behind the Total count or such, click on it and it toggle ;-)
+	Achieving that would be a nice trick but take some doing.
+
+    <div class="col">
+		<h2>Unique Door Openings in a Visit</h2>
+		<div class="graph">{{histogram_unique_doors_per_visit.div | safe}}</div>
+	</div>
+	{% endcomment %}
+
+    <div class="col">
+		<h2>Total Observed Door Popularity (Opening Counts)</h2>
+		<div class="graph">{{histogram_by_doors.div | safe}}</div>
 	</div>
 
     <div class="col">
@@ -65,21 +126,6 @@
     <div class="col">
 		<h2>Week of year of visits</h2>
 		<div class="graph">{{histogram_by_week_of_year.div | safe}}</div>
-	</div>
-
-    <div class="col">
-		<h2>Total Door Openings in a Visit</h2>
-		<div class="graph">{{histogram_total_doors_per_visit.div | safe}}</div>
-	</div>
-
-    <div class="col">
-		<h2>Unique Door Openings in a Visit</h2>
-		<div class="graph">{{histogram_unique_doors_per_visit.div | safe}}</div>
-	</div>
-
-    <div class="col">
-		<h2>Total Observed Door Popularity (Opening Counts)</h2>
-		<div class="graph">{{histogram_by_doors.div | safe}}</div>
 	</div>
 </div>
 {% endblock %}

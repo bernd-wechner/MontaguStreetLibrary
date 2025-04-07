@@ -30,59 +30,19 @@ They write:
 
 Which at 3.71 USD/million API calls translates to 53,908 API calls per month or 1739 API calls/day.
 
-So shoudl ve very safe for a daily download of, well as many as 1700 door sensors ;-).
+So should be very safe for a daily download of, well as many as 1700 door sensors ;-).
 
 My Devices are here:
 
     https://eu.iot.tuya.com/cloud/basic?id=p1668767995023hmaagk&toptab=related&deviceTab=all
 '''
-import tinytuya, sys
-
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from Doors.models import Door, Event, Opening, Visit, Uptime
+from Doors.models import DataFetch
 
 
 class Command(BaseCommand):
     help = 'Fetches the Tuya Logs and updates the database accordingly'
 
     def handle(self, *args, **kwargs):
-        cloud = tinytuya.Cloud(apiRegion=settings.TUYA_REGION,
-                               apiKey=settings.TUYA_KEY,
-                               apiSecret=settings.TUYA_SECRET,
-                               apiDeviceID=settings.TUYA_DEVICE_ID)
-
-        min_tuya_timestamp = 1
-        max_tuya_timestamp = sys.maxsize
-        verbosity = kwargs['verbosity']
-
-        for door in Door.objects.all():
-            last = Event.last(door=door)
-            start = last.timestamp - 1  if last else  min_tuya_timestamp
-            log = cloud.getdevicelog(door.tuya_device_id, start=start, end=max_tuya_timestamp)
-
-            # Just some sniffers while debugging
-            if 'result' in log:
-                row_key = log['result'].get('current_row_key', None)
-                has_next = log['result'].get('has_next', False)
-                next_row_key = log['result'].get('next_row_key', None)
-                fetches = log.get('fetches', 1)
-                events = log['result'].get('logs', [])
-            else:
-                print("No result in downloaded log.")
-                print(f"log: {log}")
-
-            if verbosity > 0:
-                print(f"Door {door.id}: Fetched {len(events)} events in {fetches} fetches.")
-
-            Event.save_logs(door, log, verbosity=verbosity)
-            Opening.update_from_events(door, verbosity=verbosity)
-            Uptime.update_from_events(door, verbosity=verbosity)
-
-        # A visit spans all doors (while an Opening concerns only one door)
-        Visit.update_from_openings(verbosity=verbosity)
-
-        if verbosity > 0:
-            print(f"Done!")
-
+        DataFetch.fetch_logs(verbosity=kwargs['verbosity'])
