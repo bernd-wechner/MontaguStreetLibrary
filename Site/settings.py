@@ -22,8 +22,8 @@ HOSTNAME = platform.node().lower()
 # PRODUCTION = "shelob"
 # SANDBOX = "arachne"
 
-PRODUCTION = "arachne"
-SANDBOX = "shelob"
+PRODUCTION = "shelob"
+SANDBOX = "arachne"
 
 SITE_IS_LIVE = HOSTNAME in [PRODUCTION, SANDBOX]
 

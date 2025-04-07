@@ -196,25 +196,6 @@ echo "Saving the $source_hostname $database database to $backup_file_source... $
 ${prefix}pg_dump $source_db $backup_format --dbname="$database" --file="$backup_file_sourcedb"
 echo -e "\tSaved the $database database to $backup_file_sourcedb."
 
-#Now export the good CoGS database:
-#
-#```
-#sudo -u postgres pg_dump -U postgres -d CoGs -f /tmp/CoGs.sql
-#```
-#
-#Now reinstall the corrupt database, drop COGs, and load it from SQL.
-#
-#```
-#sudo pg_ctlcluster 12 main stop
-#sudo rsync -a "/data/postgresql/12/main-corrupt/" "/data/postgresql/12/main"
-#sudo pg_ctlcluster 12 main start
-#sudo -u postgres psql -c 'DROP DATABASE "CoGs"'
-#sudo -u postgres psql -c 'CREATE DATABASE "CoGs";'
-#sudo -u postgres psql -d CoGs -f /tmp/CoGs.sql
-#```
-
-echo "Saved the $source_hostname $database database to $backup_file_sourcedb."
-
 # Check if the target database exists
 db_on_target=$(psql $target_db $sql_opts --command="SELECT datname FROM pg_catalog.pg_database WHERE datname='$database'")
 
@@ -273,7 +254,12 @@ echo "Loading the $source_hostname $database database on $target_hostname ..."
 
 
 if [ $use_sql = true ]; then
-	${prefix}psql $target_db  $sql_opts --dbname="$database" --file="$backup_file_sourcedb"
+	# Exports SQL, when imported prints the tuple counts even with --quite specified. So ignore output
+	if [ "$prefix" = "" ]; then
+		psql $target_db  $sql_opts --dbname="$database" --file="$backup_file_sourcedb" |& /dev/null
+	else
+		${prefix}psql $target_db  $sql_opts --dbname="$database" --file="$backup_file_sourcedb"
+	fi
 else
 	${prefix}pg_restore $target_db --dbname="$database" "$backup_file_sourcedb"
 fi  
@@ -286,4 +272,4 @@ if [ "$target_hostname" != "localhost" ];then
 	${prefix}ssh root@$target_host "service uwsgi start"
 fi
 
-echo "Done."
+echo "Done (copy_database)."

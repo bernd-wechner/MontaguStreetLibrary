@@ -351,4 +351,4 @@ if [ "$target_hostname" != "localhost" ];then
 	fi
 fi
 
-echo "Done."
+echo "Done (copy_site)."
